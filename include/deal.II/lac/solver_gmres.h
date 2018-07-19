@@ -1203,20 +1203,11 @@ SolverFGMRES<VectorType>::solve(const MatrixType &        A,
 
   SolverControl::State iteration_state = SolverControl::iterate;
 
-  const unsigned int basis_size = additional_data.max_basis_size;
-
-  // Generate an object where basis vectors are stored.
-  typename internal::SolverGMRESImplementation::TmpVectors<VectorType> v(
-    basis_size, this->memory);
-  typename internal::SolverGMRESImplementation::TmpVectors<VectorType> z(
-    basis_size, this->memory);
+  unsigned int basis_size = additional_data.max_basis_size;
 
   // number of the present iteration; this number is not reset to zero upon a
   // restart
   unsigned int accumulated_iterations = 0;
-
-  // matrix used for the orthogonalization process later
-  H.reinit(basis_size + 1, basis_size);
 
   // Vectors for projected system
   Vector<double> projected_rhs;
@@ -1232,13 +1223,21 @@ SolverFGMRES<VectorType>::solve(const MatrixType &        A,
       A.vmult(*aux, x);
       aux->sadd(-1., 1., b);
 
-      double beta     = aux->l2_norm();
-      res             = beta;
+      const double beta = aux->l2_norm();
+      res               = beta;
       iteration_state = this->iteration_status(accumulated_iterations, res, x);
       if (iteration_state == SolverControl::success)
         break;
 
+      // Generate an object where basis vectors are stored.
+      typename internal::SolverGMRESImplementation::TmpVectors<VectorType> v(
+        basis_size, this->memory);
+      typename internal::SolverGMRESImplementation::TmpVectors<VectorType> z(
+        basis_size, this->memory);
+
+      // matrix used for the orthogonalization process
       H.reinit(basis_size + 1, basis_size);
+
       double a = beta;
 
       for (unsigned int j = 0; j < basis_size; ++j)
@@ -1272,7 +1271,7 @@ SolverFGMRES<VectorType>::solve(const MatrixType &        A,
               // criterion is not the final solution we compute if we
               // decide to jump out of the iteration (we update 'x' again
               // right after the current loop)
-              Householder<double> house(H1);
+              const Householder<double> house(H1);
               res = house.least_squares(y, projected_rhs);
               iteration_state =
                 this->iteration_status(++accumulated_iterations, res, x);
@@ -1284,6 +1283,11 @@ SolverFGMRES<VectorType>::solve(const MatrixType &        A,
       // Update solution vector
       for (unsigned int j = 0; j < y.size(); ++j)
         x.add(y(j), z[j]);
+
+      if (iteration_state == SolverControl::iterate)
+        {
+          basis_size += accumulated_iterations;
+        }
     }
   while (iteration_state == SolverControl::iterate);
 
