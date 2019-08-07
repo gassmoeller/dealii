@@ -1183,7 +1183,7 @@ namespace Particles
       }
 
     return Utilities::pack(stored_particles_on_cell,
-                           /*allow_compression=*/true);
+                           /*allow_compression=*/false);
   }
 
   template <int dim, int spacedim>
@@ -1199,7 +1199,7 @@ namespace Particles
       Utilities::unpack<std::vector<Particle<dim, spacedim>>>(
         data_range.begin(),
         data_range.end(),
-        /*allow_compression=*/true);
+        /*allow_compression=*/false);
 
     // Update the reference to the current property pool for all particles.
     // This was not stored, because they might be transported across process
