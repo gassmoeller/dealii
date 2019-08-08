@@ -208,6 +208,42 @@ namespace Particles
 
 
   template <int dim, int spacedim>
+  void
+  Particle<dim, spacedim>::append_data(std::vector<char> &buffer) const
+  {
+    void *begin_buffer = &(*buffer.end());
+    buffer.resize(buffer.size() + serialized_size_in_bytes());
+
+    types::particle_index *id_data =
+      static_cast<types::particle_index *>(begin_buffer);
+    *id_data = id;
+    ++id_data;
+    double *pdata = reinterpret_cast<double *>(id_data);
+
+    // Write location data
+    for (unsigned int i = 0; i < spacedim; ++i, ++pdata)
+      *pdata = location(i);
+
+    // Write reference location data
+    for (unsigned int i = 0; i < dim; ++i, ++pdata)
+      *pdata = reference_location(i);
+
+    // Write property data
+    if (has_properties())
+      {
+        const ArrayView<double> particle_properties =
+          property_pool->get_properties(properties);
+        for (unsigned int i = 0; i < particle_properties.size(); ++i, ++pdata)
+          *pdata = particle_properties[i];
+      }
+
+    Assert(reinterpret_cast<char *>(pdata) == &(*buffer.end()),
+           ExcInternalError());
+  }
+
+
+
+  template <int dim, int spacedim>
   std::size_t
   Particle<dim, spacedim>::serialized_size_in_bytes() const
   {

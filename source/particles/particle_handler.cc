@@ -36,16 +36,15 @@ namespace Particles
     {
       std::vector<char> buffer;
 
-      if (particles.size() == 0)
+      if (particles.empty())
         return buffer;
 
-      buffer.resize(particles.size() *
-                    particles.front().serialized_size_in_bytes());
-      void *current_data = buffer.data();
+      buffer.reserve(particles.size() *
+                     particles.front().serialized_size_in_bytes());
 
       for (const auto &particle : particles)
         {
-          particle.write_data(current_data);
+          particle.append_data(buffer);
         }
 
       return buffer;

@@ -192,6 +192,9 @@ namespace Particles
     void
     write_data(void *&data) const;
 
+    void
+    append_data(std::vector<char> &data) const;
+
     /**
      * Set the location of this particle. Note that this does not check
      * whether this is a valid location in the simulation domain.
