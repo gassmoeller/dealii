@@ -549,9 +549,11 @@ namespace Utilities
    */
   template <typename T>
   size_t
-  pack(const T &          object,
-       std::vector<char> &dest_buffer,
-       const bool         allow_compression = true);
+  pack(const T &                            object,
+       std::vector<char> &                  dest_buffer,
+       const bool                           allow_compression = true,
+       const boost::iostreams::gzip_params &gzip_params =
+         boost::iostreams::gzip_params());
 
   /**
    * Creates and returns a buffer solely for the given object, using the
@@ -565,7 +567,10 @@ namespace Utilities
    */
   template <typename T>
   std::vector<char>
-  pack(const T &object, const bool allow_compression = true);
+  pack(const T &                            object,
+       const bool                           allow_compression = true,
+       const boost::iostreams::gzip_params &gzip_params =
+         boost::iostreams::gzip_params());
 
   /**
    * Given a vector of characters, obtained through a call to the function
@@ -1171,9 +1176,10 @@ namespace Utilities
 
   template <typename T>
   size_t
-  pack(const T &          object,
-       std::vector<char> &dest_buffer,
-       const bool         allow_compression)
+  pack(const T &                            object,
+       std::vector<char> &                  dest_buffer,
+       const bool                           allow_compression,
+       const boost::iostreams::gzip_params &gzip_params)
   {
     // the data is never compressed when we can't use zlib.
     (void)allow_compression;
@@ -1213,9 +1219,7 @@ namespace Utilities
         if (allow_compression)
           {
             boost::iostreams::filtering_ostream out;
-            out.push(
-              boost::iostreams::gzip_compressor(boost::iostreams::gzip_params(
-                boost::iostreams::gzip::best_compression)));
+            out.push(boost::iostreams::gzip_compressor(gzip_params));
             out.push(boost::iostreams::back_inserter(dest_buffer));
 
             boost::archive::binary_oarchive archive(out);
@@ -1243,10 +1247,12 @@ namespace Utilities
 
   template <typename T>
   std::vector<char>
-  pack(const T &object, const bool allow_compression)
+  pack(const T &                            object,
+       const bool                           allow_compression,
+       const boost::iostreams::gzip_params &gzip_params)
   {
     std::vector<char> buffer;
-    pack<T>(object, buffer, allow_compression);
+    pack<T>(object, buffer, allow_compression, gzip_params);
     return buffer;
   }
 
