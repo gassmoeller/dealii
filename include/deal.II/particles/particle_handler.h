@@ -21,7 +21,7 @@
 #include <deal.II/base/smartpointer.h>
 #include <deal.II/base/subscriptor.h>
 
-#include <deal.II/distributed/tria.h>
+#include <deal.II/grid/tria.h>
 
 #include <deal.II/fe/mapping.h>
 
@@ -78,7 +78,7 @@ namespace Particles
      * the initialize function.
      */
     ParticleHandler(
-      const parallel::distributed::Triangulation<dim, spacedim> &tria,
+      const Triangulation<dim, spacedim> &tria,
       const Mapping<dim, spacedim> &                             mapping,
       const unsigned int n_properties = 0);
 
@@ -93,7 +93,7 @@ namespace Particles
      * MPI communicator and the triangulation.
      */
     void
-    initialize(const parallel::distributed::Triangulation<dim, spacedim> &tria,
+    initialize(const Triangulation<dim, spacedim> &tria,
                const Mapping<dim, spacedim> &mapping,
                const unsigned int            n_properties = 0);
 
@@ -147,25 +147,25 @@ namespace Particles
     end();
 
     /**
-     * Return an iterator to the first ghost particle.
+     * Return an iterator to the first ghost particle. If the associated triangulation is not a parallel::distributed::Triangulation, there are no ghost particles.
      */
     particle_iterator
     begin_ghost() const;
 
     /**
-     * Return an iterator to the first ghost particle.
+     * Return an iterator to the first ghost particle. If the associated triangulation is not a parallel::distributed::Triangulation, there are no ghost particles.
      */
     particle_iterator
     begin_ghost();
 
     /**
-     * Return an iterator past the end of the ghost particles.
+     * Return an iterator past the end of the ghost particles. If the associated triangulation is not a parallel::distributed::Triangulation, there are no ghost particles.
      */
     particle_iterator
     end_ghost() const;
 
     /**
-     * Return an iterator past the end of the ghost particles.
+     * Return an iterator past the end of the ghost particles. If the associated triangulation is not a parallel::distributed::Triangulation, there are no ghost particles.
      */
     particle_iterator
     end_ghost();
@@ -271,6 +271,9 @@ namespace Particles
      * The actual number of particles may have changed since then if
      * particles have been added or removed.
      *
+     * For serial computations n_global_particles() returns the same number as
+     * n_locally_owned_particles().
+     *
      * @return Total number of particles in simulation.
      */
     types::particle_index
@@ -335,7 +338,8 @@ namespace Particles
     /**
      * Exchange all particles that live in cells that are ghost cells to
      * other processes. Clears and re-populates the ghost_neighbors
-     * member variable.
+     * member variable. Does nothing if the triangulation has no
+     * ghost cells.
      */
     void
     exchange_ghost_particles();
@@ -367,7 +371,7 @@ namespace Particles
     /**
      * Address of the triangulation to work on.
      */
-    SmartPointer<const parallel::distributed::Triangulation<dim, spacedim>,
+    SmartPointer<const Triangulation<dim, spacedim>,
                  ParticleHandler<dim, spacedim>>
       triangulation;
 

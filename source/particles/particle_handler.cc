@@ -18,6 +18,8 @@
 #include <deal.II/grid/grid_tools.h>
 #include <deal.II/grid/grid_tools_cache.h>
 
+#include <deal.II/distributed/tria.h>
+
 #include <deal.II/particles/particle_handler.h>
 
 #include <utility>
@@ -30,6 +32,15 @@ namespace Particles
 {
   namespace
   {
+    template<int dim, int spacedim>
+    bool
+    triangulation_is_distributed(const Triangulation<dim, spacedim> &triangulation)
+    {
+      return (dynamic_cast<
+                  const parallel::distributed::Triangulation<dim, spacedim> *>(
+                  &triangulation) != nullptr);
+    }
+
     template <int dim, int spacedim>
     std::vector<char>
     pack_particles(std::vector<Particle<dim, spacedim>> &particles)
@@ -106,7 +117,7 @@ namespace Particles
 
   template <int dim, int spacedim>
   ParticleHandler<dim, spacedim>::ParticleHandler(
-    const parallel::distributed::Triangulation<dim, spacedim> &triangulation,
+    const Triangulation<dim, spacedim> &triangulation,
     const Mapping<dim, spacedim> &                             mapping,
     const unsigned int                                         n_properties)
     : triangulation(&triangulation, typeid(*this).name())
@@ -128,7 +139,7 @@ namespace Particles
   template <int dim, int spacedim>
   void
   ParticleHandler<dim, spacedim>::initialize(
-    const parallel::distributed::Triangulation<dim, spacedim>
+    const Triangulation<dim, spacedim>
       &                           new_triangulation,
     const Mapping<dim, spacedim> &new_mapping,
     const unsigned int            n_properties)
@@ -189,16 +200,27 @@ namespace Particles
           std::max(local_max_particles_per_cell, current_particles_per_cell);
       }
 
+    if (const auto tria = dynamic_cast<
+        const parallel::distributed::Triangulation<dim, spacedim> *>(
+        &(*triangulation)))
+      {
     global_number_of_particles =
       dealii::Utilities::MPI::sum(particles.size(),
-                                  triangulation->get_communicator());
+                                  tria->get_communicator());
     next_free_particle_index =
       dealii::Utilities::MPI::max(locally_highest_index,
-                                  triangulation->get_communicator()) +
+                                  tria->get_communicator()) +
       1;
     global_max_particles_per_cell =
       dealii::Utilities::MPI::max(local_max_particles_per_cell,
-                                  triangulation->get_communicator());
+                                  tria->get_communicator());
+      }
+    else
+      {
+        global_number_of_particles = particles.size();
+        next_free_particle_index = locally_highest_index;
+        global_max_particles_per_cell = local_max_particles_per_cell;
+      }
   }
 
 
@@ -381,15 +403,20 @@ namespace Particles
     types::particle_index local_start_index = 0;
 
 #  ifdef DEAL_II_WITH_MPI
+    if (const auto tria = dynamic_cast<
+        const parallel::distributed::Triangulation<dim, spacedim> *>(
+        &(*triangulation)))
+      {
     types::particle_index particles_to_add_locally = positions.size();
     const int             ierr = MPI_Scan(&particles_to_add_locally,
                               &local_start_index,
                               1,
                               DEAL_II_PARTICLE_INDEX_MPI_TYPE,
                               MPI_SUM,
-                              triangulation->get_communicator());
+                              tria->get_communicator());
     AssertThrowMPI(ierr);
     local_start_index -= particles_to_add_locally;
+      }
 #  endif
 
     local_start_index += local_next_particle_index;
@@ -598,8 +625,15 @@ namespace Particles
     sorted_particles.reserve(
       static_cast<vector_size>(particles_out_of_cell.size() * 1.25));
 
-    const std::set<types::subdomain_id> ghost_owners =
-      triangulation->ghost_owners();
+    std::set<types::subdomain_id> ghost_owners;
+
+    if (const auto tria = dynamic_cast<
+        const parallel::distributed::Triangulation<dim, spacedim> *>(
+        &(*triangulation)))
+      {
+        ghost_owners =
+            tria->ghost_owners();
+      }
 
     for (const auto ghost_owner : ghost_owners)
       moved_particles[ghost_owner].reserve(
@@ -741,9 +775,14 @@ namespace Particles
 
     // Exchange particles between processors if we have more than one process
 #  ifdef DEAL_II_WITH_MPI
+    if (const auto tria = dynamic_cast<
+        const parallel::distributed::Triangulation<dim, spacedim> *>(
+        &(*triangulation)))
+      {
     if (dealii::Utilities::MPI::n_mpi_processes(
-          triangulation->get_communicator()) > 1)
+        tria->get_communicator()) > 1)
       send_recv_particles(moved_particles, sorted_particles_map, moved_cells);
+      }
 #  endif
 
     sorted_particles_map.insert(sorted_particles.begin(),
@@ -762,9 +801,14 @@ namespace Particles
   void
   ParticleHandler<dim, spacedim>::exchange_ghost_particles()
   {
-    // Nothing to do in serial computations
-    if (dealii::Utilities::MPI::n_mpi_processes(
-          triangulation->get_communicator()) == 1)
+    // Nothing to do in serial triangulation or serial computations
+    const auto tria = dynamic_cast<
+                    const parallel::distributed::Triangulation<dim, spacedim> *>(
+                    &(*triangulation));
+
+    if ((tria == nullptr) ||
+        (dealii::Utilities::MPI::n_mpi_processes(
+            tria->get_communicator()) == 1))
       return;
 
 #  ifdef DEAL_II_WITH_MPI
@@ -775,16 +819,16 @@ namespace Particles
       ghost_particles_by_domain;
 
     const std::set<types::subdomain_id> ghost_owners =
-      triangulation->ghost_owners();
+      tria->ghost_owners();
     for (const auto ghost_owner : ghost_owners)
       ghost_particles_by_domain[ghost_owner].reserve(
         static_cast<typename std::vector<particle_iterator>::size_type>(
           particles.size() * 0.25));
 
     std::vector<std::set<unsigned int>> vertex_to_neighbor_subdomain(
-      triangulation->n_vertices());
+        tria->n_vertices());
 
-    for (const auto &cell : triangulation->active_cell_iterators())
+    for (const auto &cell : tria->active_cell_iterators())
       {
         if (cell->is_ghost())
           for (unsigned int v = 0; v < GeometryInfo<dim>::vertices_per_cell;
@@ -793,7 +837,7 @@ namespace Particles
               cell->subdomain_id());
       }
 
-    for (const auto &cell : triangulation->active_cell_iterators())
+    for (const auto &cell : tria->active_cell_iterators())
       {
         if (!cell->is_ghost())
           {
@@ -842,9 +886,14 @@ namespace Particles
       std::vector<typename Triangulation<dim, spacedim>::active_cell_iterator>>
       &send_cells)
   {
+    if (const auto tria = dynamic_cast<
+                const parallel::distributed::Triangulation<dim, spacedim> *>(
+                &(*triangulation)))
+      {
+
     // Determine the communication pattern
     const std::set<types::subdomain_id> ghost_owners =
-      triangulation->ghost_owners();
+        tria->ghost_owners();
     const std::vector<types::subdomain_id> neighbors(ghost_owners.begin(),
                                                      ghost_owners.end());
     const unsigned int                     n_neighbors = neighbors.size();
@@ -908,7 +957,7 @@ namespace Particles
                 if (send_cells.size() == 0)
                   cell =
                     particles_to_send.at(neighbors[i])[j]->get_surrounding_cell(
-                      *triangulation);
+                      *tria);
                 else
                   cell = send_cells.at(neighbors[i])[j];
 
@@ -942,7 +991,7 @@ namespace Particles
                                      MPI_UNSIGNED,
                                      neighbors[i],
                                      0,
-                                     triangulation->get_communicator(),
+                                     tria->get_communicator(),
                                      &(n_requests[2 * i]));
           AssertThrowMPI(ierr);
         }
@@ -953,7 +1002,7 @@ namespace Particles
                                      MPI_UNSIGNED,
                                      neighbors[i],
                                      0,
-                                     triangulation->get_communicator(),
+                                     tria->get_communicator(),
                                      &(n_requests[2 * i + 1]));
           AssertThrowMPI(ierr);
         }
@@ -987,7 +1036,7 @@ namespace Particles
                                        MPI_CHAR,
                                        neighbors[i],
                                        1,
-                                       triangulation->get_communicator(),
+                                       tria->get_communicator(),
                                        &(requests[send_ops]));
             AssertThrowMPI(ierr);
             send_ops++;
@@ -1001,7 +1050,7 @@ namespace Particles
                                        MPI_CHAR,
                                        neighbors[i],
                                        1,
-                                       triangulation->get_communicator(),
+                                       tria->get_communicator(),
                                        &(requests[send_ops + recv_ops]));
             AssertThrowMPI(ierr);
             recv_ops++;
@@ -1025,7 +1074,7 @@ namespace Particles
         recv_data_it = static_cast<const char *>(recv_data_it) + cellid_size;
 
         const typename Triangulation<dim, spacedim>::active_cell_iterator cell =
-          id.to_cell(*triangulation);
+          id.to_cell(*tria);
 
         typename std::multimap<internal::LevelInd,
                                Particle<dim, spacedim>>::iterator
@@ -1043,6 +1092,7 @@ namespace Particles
                 ExcMessage(
                   "The amount of data that was read into new particles "
                   "does not match the amount of data sent around."));
+      }
   }
 #  endif
 
@@ -1067,10 +1117,12 @@ namespace Particles
   void
   ParticleHandler<dim, spacedim>::register_store_callback_function()
   {
+    if (
     parallel::distributed::Triangulation<dim, spacedim>
       *non_const_triangulation =
-        const_cast<parallel::distributed::Triangulation<dim, spacedim> *>(
-          &(*triangulation));
+        dynamic_cast<parallel::distributed::Triangulation<dim, spacedim> *>(const_cast<Triangulation<dim, spacedim> *>(
+          &(*triangulation))))
+      {
 
     // Only save and load particles if there are any, we might get here for
     // example if somebody created a ParticleHandler but generated 0 particles.
@@ -1090,6 +1142,7 @@ namespace Particles
         handle = non_const_triangulation->register_data_attach(
           callback_function, /*returns_variable_size_data=*/true);
       }
+      }
   }
 
 
@@ -1099,14 +1152,15 @@ namespace Particles
   ParticleHandler<dim, spacedim>::register_load_callback_function(
     const bool serialization)
   {
+    if (
+        parallel::distributed::Triangulation<dim, spacedim>
+          *non_const_triangulation =
+            dynamic_cast<parallel::distributed::Triangulation<dim, spacedim> *>(const_cast<Triangulation<dim, spacedim> *>(
+              &(*triangulation))))
+      {
     // All particles have been stored, when we reach this point. Empty the
     // particle data.
     clear_particles();
-
-    parallel::distributed::Triangulation<dim, spacedim>
-      *non_const_triangulation =
-        const_cast<parallel::distributed::Triangulation<dim, spacedim> *>(
-          &(*triangulation));
 
     // If we are resuming from a checkpoint, we first have to register the
     // store function again, to set the triangulation in the same state as
@@ -1149,6 +1203,7 @@ namespace Particles
         handle = numbers::invalid_unsigned_int;
         update_cached_numbers();
       }
+      }
   }
 
 
@@ -1163,8 +1218,8 @@ namespace Particles
 
     switch (status)
       {
-        case parallel::distributed::Triangulation<dim, spacedim>::CELL_PERSIST:
-        case parallel::distributed::Triangulation<dim, spacedim>::CELL_REFINE:
+        case Triangulation<dim, spacedim>::CELL_PERSIST:
+        case Triangulation<dim, spacedim>::CELL_REFINE:
           // If the cell persist or is refined store all particles of the
           // current cell.
           {
@@ -1192,7 +1247,7 @@ namespace Particles
           }
           break;
 
-        case parallel::distributed::Triangulation<dim, spacedim>::CELL_COARSEN:
+        case Triangulation<dim, spacedim>::CELL_COARSEN:
           // If this cell is the parent of children that will be coarsened,
           // collect the particles of all children.
           {
@@ -1264,7 +1319,7 @@ namespace Particles
 
     switch (status)
       {
-        case parallel::distributed::Triangulation<dim, spacedim>::CELL_PERSIST:
+        case Triangulation<dim, spacedim>::CELL_PERSIST:
           {
             auto position_hint = particles.end();
             for (const auto &particle : loaded_particles_on_cell)
@@ -1294,7 +1349,7 @@ namespace Particles
           }
           break;
 
-        case parallel::distributed::Triangulation<dim, spacedim>::CELL_COARSEN:
+        case Triangulation<dim, spacedim>::CELL_COARSEN:
           {
             typename std::multimap<internal::LevelInd,
                                    Particle<dim, spacedim>>::iterator
@@ -1330,7 +1385,7 @@ namespace Particles
           }
           break;
 
-        case parallel::distributed::Triangulation<dim, spacedim>::CELL_REFINE:
+        case Triangulation<dim, spacedim>::CELL_REFINE:
           {
             std::vector<
               typename std::multimap<internal::LevelInd,
