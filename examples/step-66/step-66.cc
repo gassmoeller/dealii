@@ -392,7 +392,54 @@ namespace Step66
   {
     // advance all particles
     const double dt = time.get_next_step_size();
-    (void)dt;
+
+    for (const auto cell : dof_handler.active_cell_iterators())
+      // could probably do the following cheaper if we had
+      // ParticleHandler::cell_has_particles()
+      if (particle_handler.particles_in_cell(cell).empty() == false)
+        {
+          std::vector<Point<dim>> reference_points;
+          for (const auto &particle : particle_handler.particles_in_cell(cell))
+            reference_points.push_back(particle.get_reference_location());
+
+          Quadrature<dim> quad(reference_points);
+
+          FEValues<dim> fe_values(mapping, fe, quad, update_gradients);
+          fe_values.reinit(cell);
+
+          std::vector<Tensor<1, dim>> solution_gradients(quad.size());
+          fe_values.get_function_gradients(solution, solution_gradients);
+
+          unsigned int particle_index = 0;
+          for (auto &particle : particle_handler.particles_in_cell(cell))
+            {
+              const Tensor<1, dim> E = solution_gradients[particle_index];
+
+              const Tensor<1, dim> acceleration =
+                E; // todo: should actually be e*E/m
+
+              const auto     particle_properties = particle.get_properties();
+              Tensor<1, dim> old_velocity =
+                (dim == 2 ?
+                   Point<dim>(particle_properties[0], particle_properties[1]) :
+                   Point<dim>(particle_properties[0],
+                              particle_properties[1],
+                              particle_properties[2]));
+              const Tensor<1, dim> new_velocity =
+                old_velocity + dt * acceleration;
+
+              const Tensor<1, dim> dx = dt * (old_velocity + new_velocity) / 2;
+              const Point<dim>     new_position = particle.get_location() + dx;
+
+              particle.set_location(new_position);
+
+              particle.set_properties(make_array_view(new_velocity));
+
+              // TODO: set new reference location
+
+              ++particle_index;
+            }
+        }
   }
 
 
@@ -420,7 +467,7 @@ namespace Step66
 
     virtual void evaluate_scalar_field(
       const DataPostprocessorInputs::Scalar<dim> &input_data,
-      std::vector<Vector<double>> &               computed_quantities) const
+      std::vector<Vector<double>> &computed_quantities) const override
     {
       AssertDimension(input_data.solution_gradients.size(),
                       computed_quantities.size());
