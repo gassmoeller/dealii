@@ -454,25 +454,47 @@ namespace Step66
 
     double dt = std::numeric_limits<double>::max();
 
-    for (const auto &cell : triangulation.active_cell_iterators())
+    for (const auto &cell : dof_handler.active_cell_iterators())
       if (particle_handler.n_particles_in_cell(cell) > 0)
         {
           const double minimum_vertex_distance =
             cell->minimum_vertex_distance();
 
-          double max_speed = 0.0;
+          std::vector<Point<dim>> reference_points;
+          for (const auto &particle : particle_handler.particles_in_cell(cell))
+            reference_points.push_back(particle.get_reference_location());
 
+          Quadrature<dim> quad(reference_points);
+
+          FEValues<dim> fe_values(mapping, fe, quad, update_gradients);
+          fe_values.reinit(cell);
+
+          std::vector<Tensor<1, dim>> solution_gradients(quad.size());
+          fe_values.get_function_gradients(solution, solution_gradients);
+
+          double       max_speed      = 0.0;
+          unsigned int particle_index = 0;
           for (const auto &particle : particle_handler.particles_in_cell(cell))
             {
-              const auto particle_properties = particle.get_properties();
-              const Tensor<1, dim> old_velocity =
+              const Tensor<1, dim> E = solution_gradients[particle_index];
+
+              const Tensor<1, dim> acceleration =
+                E; // todo: should actually be e*E/m
+
+              const auto     particle_properties = particle.get_properties();
+              Tensor<1, dim> old_velocity =
                 (dim == 2 ?
                    Point<dim>(particle_properties[0], particle_properties[1]) :
                    Point<dim>(particle_properties[0],
                               particle_properties[1],
                               particle_properties[2]));
+              const Tensor<1, dim> new_velocity =
+                old_velocity + dt * acceleration;
 
-              max_speed = std::max(max_speed, old_velocity.norm());
+              max_speed =
+                std::max(max_speed, ((old_velocity + new_velocity) / 2).norm());
+
+              ++particle_index;
             }
 
           if (max_speed > 0.0)
@@ -547,7 +569,7 @@ namespace Step66
                            ".vtu");
       particle_out.write_vtu(output);
     }
-    // also output particles and their properties
+    // TODO: also output particles and their properties
   }
 
 
