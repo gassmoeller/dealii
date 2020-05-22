@@ -394,9 +394,7 @@ namespace Step66
     const double dt = time.get_next_step_size();
 
     for (const auto cell : dof_handler.active_cell_iterators())
-      // could probably do the following cheaper if we had
-      // ParticleHandler::cell_has_particles()
-      if (particle_handler.particles_in_cell(cell).empty() == false)
+      if (particle_handler.n_particles_in_cell(cell) > 0)
         {
           std::vector<Point<dim>> reference_points;
           for (const auto &particle : particle_handler.particles_in_cell(cell))
@@ -451,7 +449,42 @@ namespace Step66
     // We need to respect a CFL condition whereby particles can not move further
     // than one cell. Need to compute their speed here and divide the cell size
     // by that speed for all particles, then take the minimum.
-    time.set_desired_next_step_size(0.1);
+
+    const double cfl = 0.5; // TODO
+
+    double dt = std::numeric_limits<double>::max();
+
+    for (const auto &cell : triangulation.active_cell_iterators())
+      if (particle_handler.n_particles_in_cell(cell) > 0)
+        {
+          const double minimum_vertex_distance =
+            cell->minimum_vertex_distance();
+
+          double max_speed = 0.0;
+
+          for (const auto &particle : particle_handler.particles_in_cell(cell))
+            {
+              const auto particle_properties = particle.get_properties();
+              const Tensor<1, dim> old_velocity =
+                (dim == 2 ?
+                   Point<dim>(particle_properties[0], particle_properties[1]) :
+                   Point<dim>(particle_properties[0],
+                              particle_properties[1],
+                              particle_properties[2]));
+
+              max_speed = std::max(max_speed, old_velocity.norm());
+            }
+
+          if (max_speed > 0.0)
+            dt = std::min(dt, cfl * minimum_vertex_distance / max_speed);
+        }
+
+    Assert(
+      dt < std::numeric_limits<double>::max(),
+      ExcMessage(
+        "There are no particles from which one could compute the appropriate time step size."));
+
+    time.set_desired_next_step_size(dt);
   }
 
 
