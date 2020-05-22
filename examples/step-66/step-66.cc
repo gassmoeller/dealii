@@ -385,7 +385,7 @@ namespace Step66
   }
 
 
-  // @sect4{CathodeRaySimulator::create_particles}
+  // @sect4{CathodeRaySimulator::move_particles}
 
   template <int dim>
   void CathodeRaySimulator<dim>::move_particles()
