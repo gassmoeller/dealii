@@ -511,7 +511,7 @@ namespace Step66
 
     virtual void evaluate_scalar_field(
       const DataPostprocessorInputs::Scalar<dim> &input_data,
-      std::vector<Vector<double>> &               computed_quantities) const
+      std::vector<Vector<double>> &computed_quantities) const override
     {
       AssertDimension(input_data.solution_gradients.size(),
                       computed_quantities.size());
@@ -558,7 +558,7 @@ namespace Step66
                            ".vtu");
       particle_out.write_vtu(output);
     }
-    // also output particles and their properties
+    // TODO: also output particles and their properties
   }
 
 
