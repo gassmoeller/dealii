@@ -58,6 +58,12 @@ namespace Step66
     constexpr types::boundary_id anode   = 103;
   } // namespace BoundaryIds
 
+  namespace Constants
+  {
+    constexpr double electron_mass   = 9.1093837015e-31;
+    constexpr double electron_charge = 1.602176634e-19;
+  } // namespace Constants
+
 
   template <int dim>
   class CathodeRaySimulator
@@ -328,7 +334,7 @@ namespace Step66
   void CathodeRaySimulator<dim>::create_particles()
   {
     FEFaceValues<dim>           fe_face_values(fe,
-                                     QGauss<dim - 1>(3),
+                                     QMidpoint<dim - 1>(),
                                      update_quadrature_points |
                                        update_gradients |
                                        update_normal_vectors);
@@ -367,14 +373,11 @@ namespace Step66
 
                     Particles::Particle<dim> new_particle;
                     new_particle.set_location(location);
+                    new_particle.set_reference_location(
+                      mapping.transform_real_to_unit_cell(cell, location));
                     new_particle.set_id(n_current_particles);
-                    // probably need to set the reference location as well?
                     auto it =
                       particle_handler.insert_particle(new_particle, cell);
-
-                    const std::vector<double> initial_velocity(dim, 0.);
-                    it->set_properties(initial_velocity);
-
 
                     ++n_current_particles;
                   }
@@ -392,7 +395,64 @@ namespace Step66
   {
     // advance all particles
     const double dt = time.get_next_step_size();
-    (void)dt;
+
+    std::vector<Point<dim>>     particle_positions;
+    std::vector<Tensor<1, dim>> field_gradients;
+
+    // Loop over all cells and advect the particles cell-wise
+    for (const auto &cell : dof_handler.active_cell_iterators())
+      {
+        const typename Particles::ParticleHandler<dim>::particle_iterator_range
+          particles_in_cell = particle_handler.particles_in_cell(cell);
+
+        // Only advect particles, if there are any in this cell
+        const unsigned int n_particles_in_cell =
+          std::distance(particles_in_cell.begin(), particles_in_cell.end());
+
+        if (n_particles_in_cell == 0)
+          continue;
+
+        particle_positions.resize(n_particles_in_cell);
+        field_gradients.resize(n_particles_in_cell);
+
+        typename Particles::ParticleHandler<dim>::particle_iterator particle =
+          particles_in_cell.begin();
+        for (unsigned int i = 0; particle != particles_in_cell.end();
+             ++particle, ++i)
+          {
+            particle_positions[i] = particle->get_reference_location();
+          }
+
+        const Quadrature<dim> quadrature_formula(particle_positions);
+        FEValues<dim>         fe_value(mapping,
+                               fe,
+                               quadrature_formula,
+                               update_gradients);
+
+        fe_value.reinit(cell);
+        fe_value.get_function_gradients(solution, field_gradients);
+
+        particle = particles_in_cell.begin();
+        for (unsigned int i = 0; particle != particles_in_cell.end();
+             ++particle, ++i)
+          {
+            ArrayView<double> properties = particle->get_properties();
+            Tensor<1, dim>    velocity_tensor;
+            for (unsigned int j = 0; j < dim; ++j)
+              {
+                velocity_tensor[j] = properties[j];
+                properties[j] += Constants::electron_charge /
+                                 Constants::electron_mass *
+                                 field_gradients[i][j] * dt;
+              }
+
+            particle->set_location(particle->get_location() +
+                                   dt * velocity_tensor);
+          }
+      }
+
+    // Find the cells that the particles moved to
+    particle_handler.sort_particles_into_subdomains_and_cells();
   }
 
 
@@ -401,10 +461,41 @@ namespace Step66
   template <int dim>
   void CathodeRaySimulator<dim>::update_timestep_size()
   {
+    if (time.get_step_number() == 0)
+      {
+        time.set_desired_next_step_size(1e-9);
+        return;
+      }
+
     // We need to respect a CFL condition whereby particles can not move further
-    // than one cell. Need to compute their speed here and divide the cell size
-    // by that speed for all particles, then take the minimum.
-    time.set_desired_next_step_size(0.1);
+    // than one cell. Compute their speed and divide the cell size
+    // by that speed for all particles, then take the minimum and use that
+    // as next time step.
+    double min_cell_size_over_velocity(std::numeric_limits<double>::max());
+
+    for (const auto &cell : dof_handler.active_cell_iterators())
+      {
+        const double cell_diameter = cell->diameter();
+
+        double max_particle_velocity(0.0);
+
+        for (const auto &particle : particle_handler.particles_in_cell(cell))
+          {
+            Tensor<1, dim> velocity;
+            for (unsigned int i = 0; i < dim; ++i)
+              {
+                velocity[i] = particle.get_properties()[i];
+              }
+            max_particle_velocity =
+              std::max(max_particle_velocity, velocity.norm());
+          }
+
+        min_cell_size_over_velocity =
+          std::min(min_cell_size_over_velocity,
+                   cell_diameter / max_particle_velocity);
+      }
+
+    time.set_desired_next_step_size(min_cell_size_over_velocity);
   }
 
 
