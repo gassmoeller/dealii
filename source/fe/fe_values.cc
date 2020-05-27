@@ -4252,7 +4252,7 @@ FEValuesBase<dim, spacedim>::invalidate_present_cell()
 {
   // if there is no present cell, then we shouldn't be
   // connected via a signal to a triangulation
-  Assert(present_cell.get() != nullptr, ExcInternalError());
+  //Assert(present_cell.get() != nullptr, ExcInternalError());
 
   // so delete the present cell and
   // disconnect from the signal we have with

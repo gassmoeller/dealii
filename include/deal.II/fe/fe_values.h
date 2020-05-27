@@ -3668,6 +3668,12 @@ public:
   reinit(const typename Triangulation<dim, spacedim>::cell_iterator &cell);
 
   /**
+   * Replace the quadrature formula stored by this object.
+   */
+  void
+  replace_quadrature(const Quadrature<dim> &quadrature);
+
+  /**
    * Return a reference to the copy of the quadrature formula stored by this
    * object.
    */
@@ -3702,7 +3708,7 @@ private:
   /**
    * Store a copy of the quadrature formula here.
    */
-  const Quadrature<dim> quadrature;
+  Quadrature<dim> quadrature;
 
   /**
    * Do work common to the two constructors.
@@ -5663,6 +5669,16 @@ FEValuesBase<dim, spacedim>::normal_vector(const unsigned int i) const
 
 
 /*--------------------- Inline functions: FEValues --------------------------*/
+
+template <int dim, int spacedim>
+inline void
+FEValues<dim, spacedim>::replace_quadrature(const Quadrature<dim> &quadrature_)
+{
+  quadrature = quadrature_;
+  this->invalidate_present_cell();
+  return;
+}
+
 
 
 template <int dim, int spacedim>
