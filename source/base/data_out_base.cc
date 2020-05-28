@@ -5377,66 +5377,30 @@ namespace DataOutBase
 
         for (unsigned int n = 0; n < n_nodes; ++n)
           {
-            if (!is_tensor)
+            const unsigned int size = last_component - first_component + 1;
+
+            // Ensure the data structure has an allowed size
+            if (is_tensor == false)
               {
-                switch (last_component - first_component)
-                  {
-                    case 0:
-                      data.push_back(data_vectors(first_component, n));
-                      data.push_back(0);
-                      data.push_back(0);
-                      break;
-
-                    case 1:
-                      data.push_back(data_vectors(first_component, n));
-                      data.push_back(data_vectors(first_component + 1, n));
-                      data.push_back(0);
-                      break;
-
-                    case 2:
-                      data.push_back(data_vectors(first_component, n));
-                      data.push_back(data_vectors(first_component + 1, n));
-                      data.push_back(data_vectors(first_component + 2, n));
-                      break;
-
-                    default:
-                      // Anything else is not yet implemented
-                      Assert(false, ExcInternalError());
-                  }
+                // 1D, 2D, 3D vectors
+                Assert(size <= 3, ExcInternalError());
               }
             else
               {
-                Tensor<2, 3> vtk_data;
-                vtk_data = 0.;
+                // 1D, 2D, 3D tensors
+                Assert((size == 1) || (size == 4) || (size == 9),
+                       ExcInternalError());
+              }
 
-                const unsigned int size = last_component - first_component + 1;
-                if (size == 1)
-                  // 1D, 1 element
-                  {
-                    vtk_data[0][0] = data_vectors(first_component, n);
-                  }
-                else if ((size == 4) || (size == 9))
-                  // 2D, 4 elements or 3D 9 elements
-                  {
-                    for (unsigned int c = 0; c < size; ++c)
-                      {
-                        const auto ind =
-                          Tensor<2, spacedim>::unrolled_to_component_indices(c);
-                        vtk_data[ind[0]][ind[1]] =
-                          data_vectors(first_component + c, n);
-                      }
-                  }
+            // note we padd with zeros because VTK format always wants to
+            // see 3 components for vectors and 3x3 tensors, regardless of
+            // dimension
+            for (unsigned int c = 0; c < n_components; ++c)
+              {
+                if (c < size)
+                  data.push_back(data_vectors(first_component + c, n));
                 else
-                  {
-                    Assert(false, ExcInternalError());
-                  }
-
-                // now put the tensor into data
-                // note we padd with zeros because VTK format always wants to
-                // see a 3x3 tensor, regardless of dimension
-                for (unsigned int i = 0; i < 3; ++i)
-                  for (unsigned int j = 0; j < 3; ++j)
-                    data.push_back(vtk_data[i][j]);
+                  data.push_back(0.0);
               }
           } // loop over nodes
 
