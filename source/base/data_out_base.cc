@@ -5371,36 +5371,61 @@ namespace DataOutBase
         out << "\" NumberOfComponents=\"" << n_components << "\" format=\""
             << ascii_or_binary << "\">\n";
 
-        // now write data. pad all vectors to have three components
-        std::vector<float> data;
-        data.reserve(n_nodes * n_components);
+        // now write data.
+        // note we padd with zeros because VTK format always wants to
+        // see 3 components for vectors and 3x3 tensors, regardless of
+        // dimension
+        std::vector<float> data(n_nodes * n_components, 0.0);
+
+        const unsigned int n_input_components =
+          last_component - first_component + 1;
+
+        // Ensure the input data structure has an allowed size
+        if (is_tensor == false)
+          {
+            // 1D, 2D, 3D vectors
+            Assert(n_input_components <= 3, ExcInternalError());
+          }
+        else
+          {
+            // 1D, 2D, 3D tensors
+            Assert((n_input_components == 1) || (n_input_components == 4) ||
+                     (n_input_components == 9),
+                   ExcInternalError());
+          }
 
         for (unsigned int n = 0; n < n_nodes; ++n)
           {
-            const unsigned int size = last_component - first_component + 1;
-
-            // Ensure the data structure has an allowed size
-            if (is_tensor == false)
+            for (unsigned int c = 0; c < n_input_components; ++c)
               {
-                // 1D, 2D, 3D vectors
-                Assert(size <= 3, ExcInternalError());
-              }
-            else
-              {
-                // 1D, 2D, 3D tensors
-                Assert((size == 1) || (size == 4) || (size == 9),
-                       ExcInternalError());
-              }
-
-            // note we padd with zeros because VTK format always wants to
-            // see 3 components for vectors and 3x3 tensors, regardless of
-            // dimension
-            for (unsigned int c = 0; c < n_components; ++c)
-              {
-                if (c < size)
-                  data.push_back(data_vectors(first_component + c, n));
+                if ((is_tensor == false) || (n_input_components == 1))
+                  data[n * n_components + c] =
+                    data_vectors(first_component + c, n);
                 else
-                  data.push_back(0.0);
+                  {
+                    // Pad and convert indices from deal.II unrolled tensor
+                    // to vtk 3D tensor.
+                    unsigned int output_component;
+                    if (n_input_components == 4)
+                      {
+                        const auto data_indices =
+                          Tensor<2, 2>::unrolled_to_component_indices(c);
+                        output_component =
+                          data_indices[0] * 2 + data_indices[1];
+                      }
+                    else if (n_input_components == 9)
+                      {
+                        const auto data_indices =
+                          Tensor<2, 3>::unrolled_to_component_indices(c);
+                        output_component =
+                          data_indices[0] * 3 + data_indices[1];
+                      }
+                    else
+                      Assert(false, ExcInternalError());
+
+                    data[n * n_components + output_component] =
+                      data_vectors(first_component + c, n);
+                  }
               }
           } // loop over nodes
 
