@@ -49,10 +49,9 @@ namespace Particles
      * container, and an iterator to the cell-particle pair.
      */
     ParticleIterator(
-      const std::multimap<internal::LevelInd, Particle<dim, spacedim>> &map,
-      const typename std::multimap<internal::LevelInd,
-                                   Particle<dim, spacedim>>::iterator
-        &particle);
+      const std::vector<std::vector<Particle<dim, spacedim>>> &particles,
+      const unsigned int active_cell_index,
+      const unsigned int particle_index);
 
     /**
      * Dereferencing operator, returns a reference to an accessor. Usage is thus
@@ -146,10 +145,10 @@ namespace Particles
 
   template <int dim, int spacedim>
   inline ParticleIterator<dim, spacedim>::ParticleIterator(
-    const std::multimap<internal::LevelInd, Particle<dim, spacedim>> &map,
-    const typename std::multimap<internal::LevelInd,
-                                 Particle<dim, spacedim>>::iterator & particle)
-    : accessor(map, particle)
+    const std::vector<std::vector<Particle<dim, spacedim>>> &particles,
+    const unsigned int                                       active_cell_index,
+    const unsigned int                                       particle_index)
+    : accessor(particles, active_cell_index, particle_index)
   {}
 
 

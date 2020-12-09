@@ -72,6 +72,7 @@ test()
 
     auto particle_it = particle_handler.insert_particle(particle1, cell1);
     particle_it->set_properties(properties);
+    particle_handler.update_cached_numbers();
 
     std::vector<std::string> data_names;
     std::vector<DataComponentInterpretation::DataComponentInterpretation>

@@ -55,16 +55,16 @@ test()
     particle.set_properties(
       ArrayView<double>(&properties[0], properties.size()));
 
-    std::multimap<Particles::internal::LevelInd, Particles::Particle<dim>> map;
+    std::vector<std::vector<Particles::Particle<dim>>> particle_container;
+    particle_container.resize(1);
 
-    Particles::internal::LevelInd level_index = std::make_pair(0, 0);
-    map.insert(std::make_pair(level_index, particle));
+    particle_container[0].push_back(particle);
 
     particle.get_properties()[0] = 0.05;
-    map.insert(std::make_pair(level_index, particle));
+    particle_container[0].push_back(particle);
 
-    Particles::ParticleIterator<dim> particle_it(map, map.begin());
-    Particles::ParticleIterator<dim> particle_end(map, map.end());
+    Particles::ParticleIterator<dim> particle_it(particle_container, 0, 0);
+    Particles::ParticleIterator<dim> particle_end(particle_container, 1, 0);
 
     for (; particle_it != particle_end; ++particle_it)
       {

@@ -291,10 +291,21 @@ namespace Particles
       const;
 
     /**
-     * Remove a particle pointed to by the iterator.
+     * Remove a particle pointed to by the iterator. Afterwards the iterator
+     * will point to one of the remaining particles in the cell. Note that
+     * particle iterators that point to other particles in the same cell as @p particle
+     * may not longer be valid after this function call.
      */
     void
     remove_particle(const particle_iterator &particle);
+
+    /**
+     * Remove a vector of particles indicated by the particle iterators.
+     * The iterators and all other iterators are invalidated during the
+     * function call.
+     */
+    void
+    remove_particles(const std::vector<particle_iterator> &particles);
 
     /**
      * Insert a particle into the collection of particles. Return an iterator
@@ -833,20 +844,25 @@ namespace Particles
      * Set of particles currently living in the local domain, organized by
      * the level/index of the cell they are in.
      */
-    std::multimap<internal::LevelInd, Particle<dim, spacedim>> particles;
+    std::vector<std::vector<Particle<dim, spacedim>>> particles;
 
     /**
-     * Set of particles that currently live in the ghost cells of the local
-     * domain, organized by the level/index of the cell they are in. These
-     * particles are equivalent to the ghost entries in distributed vectors.
+     * Set of particles currently living in the local domain, organized by
+     * the level/index of the cell they are in.
      */
-    std::multimap<internal::LevelInd, Particle<dim, spacedim>> ghost_particles;
+    std::vector<std::vector<Particle<dim, spacedim>>> ghost_particles;
 
     /**
      * This variable stores how many particles are stored globally. It is
      * calculated by update_cached_numbers().
      */
     types::particle_index global_number_of_particles;
+
+    /**
+     * This variable stores how many particles are stored locally. It is
+     * calculated by update_cached_numbers().
+     */
+    types::particle_index local_number_of_particles;
 
     /**
      * The maximum number of particles per cell in the global domain. This
@@ -953,9 +969,8 @@ namespace Particles
     void
     send_recv_particles(
       const std::map<types::subdomain_id, std::vector<particle_iterator>>
-        &particles_to_send,
-      std::multimap<internal::LevelInd, Particle<dim, spacedim>>
-        &received_particles,
+        &                                                particles_to_send,
+      std::vector<std::vector<Particle<dim, spacedim>>> &received_particles,
       const std::map<
         types::subdomain_id,
         std::vector<
@@ -986,9 +1001,8 @@ namespace Particles
     void
     send_recv_particles_properties_and_location(
       const std::map<types::subdomain_id, std::vector<particle_iterator>>
-        &particles_to_send,
-      std::multimap<internal::LevelInd, Particle<dim, spacedim>>
-        &received_particles);
+        &                                                particles_to_send,
+      std::vector<std::vector<Particle<dim, spacedim>>> &received_particles);
 
 
 #endif
@@ -1041,7 +1055,11 @@ namespace Particles
   inline typename ParticleHandler<dim, spacedim>::particle_iterator
   ParticleHandler<dim, spacedim>::begin()
   {
-    return particle_iterator(particles, particles.begin());
+    for (unsigned int i = 0; i < particles.size(); ++i)
+      if (particles[i].size() != 0)
+        return particle_iterator(particles, i, 0);
+
+    return end();
   }
 
 
@@ -1059,9 +1077,8 @@ namespace Particles
   inline typename ParticleHandler<dim, spacedim>::particle_iterator
   ParticleHandler<dim, spacedim>::end()
   {
-    return particle_iterator(particles, particles.end());
+    return particle_iterator(particles, triangulation->n_active_cells(), 0);
   }
-
 
 
   template <int dim, int spacedim>
@@ -1077,7 +1094,11 @@ namespace Particles
   inline typename ParticleHandler<dim, spacedim>::particle_iterator
   ParticleHandler<dim, spacedim>::begin_ghost()
   {
-    return particle_iterator(ghost_particles, ghost_particles.begin());
+    for (unsigned int i = 0; i < ghost_particles.size(); ++i)
+      if (ghost_particles[i].size() != 0)
+        return particle_iterator(ghost_particles, i, 0);
+
+    return end_ghost();
   }
 
 
@@ -1095,7 +1116,9 @@ namespace Particles
   inline typename ParticleHandler<dim, spacedim>::particle_iterator
   ParticleHandler<dim, spacedim>::end_ghost()
   {
-    return particle_iterator(ghost_particles, ghost_particles.end());
+    return particle_iterator(ghost_particles,
+                             triangulation->n_active_cells(),
+                             0);
   }
 
 
