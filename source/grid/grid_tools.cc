@@ -2211,6 +2211,40 @@ namespace GridTools
           }
       }
 
+    // Take care of periodic boundaries,
+    // vertices at periodic boundaries share their cells
+    cell = triangulation.begin_active();
+    for (; cell != endc; ++cell)
+      {
+        for (unsigned int i : cell->face_indices())
+          {
+            if ((cell->at_boundary(i) == true) &&
+                (cell->has_periodic_neighbor(i)))
+              {
+                const auto periodic_neighbor = cell->periodic_neighbor(i);
+                const auto neighbor_face_index =
+                  cell->periodic_neighbor_face_no(i);
+                for (unsigned int j = 0; j < cell->face(i)->n_vertices(); ++j)
+                  {
+                    for (unsigned int k = 0;
+                         k < periodic_neighbor->face(neighbor_face_index)
+                               ->n_vertices();
+                         ++k)
+                      {
+                        const auto &neighbor_vertex_cells =
+                          vertex_to_cell_map[periodic_neighbor
+                                               ->face(neighbor_face_index)
+                                               ->vertex_index(k)];
+
+                        vertex_to_cell_map[cell->face(i)->vertex_index(j)]
+                          .insert(neighbor_vertex_cells.begin(),
+                                  neighbor_vertex_cells.end());
+                      }
+                  }
+              }
+          }
+      }
+
     return vertex_to_cell_map;
   }
 
