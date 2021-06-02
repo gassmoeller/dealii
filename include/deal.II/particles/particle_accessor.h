@@ -338,9 +338,12 @@ namespace Particles
   ParticleAccessor<dim, spacedim>::read_particle_data_from_memory(
     const void *data)
   {
-    Assert(particle != map->end(), ExcInternalError());
+    Assert(active_cell_index < particles->size() &&
+             particle_index < (*particles)[active_cell_index].size(),
+           ExcInternalError());
 
-    return particle->second.read_particle_data_from_memory(data);
+    return (*particles)[active_cell_index][particle_index]
+      .read_particle_data_from_memory(data);
   }
 
 
@@ -354,7 +357,8 @@ namespace Particles
              particle_index < (*particles)[active_cell_index].size(),
            ExcInternalError());
 
-    (*particles)[active_cell_index][particle_index].write_particle_data_to_memory(data);
+    return (*particles)[active_cell_index][particle_index]
+      .write_particle_data_to_memory(data);
   }
 
 

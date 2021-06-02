@@ -95,6 +95,7 @@ namespace Particles
     , property_pool(std::make_unique<PropertyPool<dim, spacedim>>(0))
     , particles()
     , global_number_of_particles(0)
+    , local_number_of_particles(0)
     , global_max_particles_per_cell(0)
     , next_free_particle_index(0)
     , size_callback()
@@ -116,6 +117,7 @@ namespace Particles
     , particles(triangulation.n_active_cells())
     , ghost_particles(triangulation.n_active_cells())
     , global_number_of_particles(0)
+    , local_number_of_particles(0)
     , global_max_particles_per_cell(0)
     , next_free_particle_index(0)
     , size_callback()
@@ -172,6 +174,7 @@ namespace Particles
 
     // copy static members
     global_number_of_particles = particle_handler.global_number_of_particles;
+    local_number_of_particles  = particle_handler.local_number_of_particles;
     global_max_particles_per_cell =
       particle_handler.global_max_particles_per_cell;
     next_free_particle_index = particle_handler.next_free_particle_index;
@@ -198,6 +201,7 @@ namespace Particles
   {
     clear_particles();
     global_number_of_particles    = 0;
+    local_number_of_particles     = 0;
     next_free_particle_index      = 0;
     global_max_particles_per_cell = 0;
   }
@@ -231,7 +235,8 @@ namespace Particles
     types::particle_index locally_highest_index        = 0;
     unsigned int          local_max_particles_per_cell = 0;
 
-    for (const std::vector<Particle<dim,spacedim>> &particles_in_cell : particles)
+    for (const std::vector<Particle<dim, spacedim>> &particles_in_cell :
+         particles)
       {
         const unsigned int n_particles_in_cell = particles_in_cell.size();
 
@@ -361,10 +366,20 @@ namespace Particles
   {
     const unsigned int active_cell_index =
       particle->get_surrounding_cell(*triangulation)->active_cell_index();
-    particles[active_cell_index][particle->particle_index] =
-      std::move(particles[active_cell_index].back());
-    particles[active_cell_index].resize(particles[active_cell_index].size() -
-                                        1);
+
+    if (particles[active_cell_index].size() > 1)
+      {
+        particles[active_cell_index][particle->particle_index] =
+          std::move(particles[active_cell_index].back());
+        particles[active_cell_index].resize(
+          particles[active_cell_index].size() - 1);
+      }
+    else
+      {
+        particles[active_cell_index].clear();
+      }
+
+    --local_number_of_particles;
   }
 
 
@@ -412,6 +427,8 @@ namespace Particles
           }
         particles[cell_index].resize(move_to);
       }
+
+    update_cached_numbers();
   }
 
 
@@ -445,6 +462,7 @@ namespace Particles
 
     const unsigned int active_cell_index = cell_to_insert->active_cell_index();
     particles[active_cell_index].push_back(particle);
+    ++local_number_of_particles;
 
     particle_iterator particle_it(particles,
                                   active_cell_index,
@@ -1016,16 +1034,18 @@ namespace Particles
     // TODO: Extend this function to allow keeping particles on other
     // processes around (with an invalid cell).
 
-    std::vector<particle_iterator> particles_out_of_cell;
-    particles_out_of_cell.reserve(n_locally_owned_particles());
+    std::vector<
+      std::pair<typename Triangulation<dim, spacedim>::active_cell_iterator,
+                particle_iterator>>
+      particles_out_of_cell;
+
+    particles_out_of_cell.reserve(n_locally_owned_particles() / 4);
 
     // Now update the reference locations of the moved particles
     std::vector<Point<spacedim>> real_locations;
     std::vector<Point<dim>>      reference_locations;
 
-    for (auto cell = triangulation->begin_active();
-         cell != triangulation->end();
-         ++cell)
+    for (const auto &cell : triangulation->active_cell_iterators())
       {
         if (cell->is_locally_owned() == false)
           continue;
@@ -1050,7 +1070,7 @@ namespace Particles
           {
             if (p_unit[0] == std::numeric_limits<double>::infinity() ||
                 !GeometryInfo<dim>::is_inside_unit_cell(p_unit))
-              particles_out_of_cell.push_back(particle);
+              particles_out_of_cell.push_back(std::make_pair(cell, particle));
             else
               particle->set_reference_location(p_unit);
 
@@ -1105,17 +1125,17 @@ namespace Particles
       std::vector<unsigned int> neighbor_permutation;
 
       // Find the cells that the particles moved to.
-      for (auto &out_particle : particles_out_of_cell)
+      for (auto &cell_and_particle : particles_out_of_cell)
         {
+          auto &current_cell = cell_and_particle.first;
+          auto &out_particle = cell_and_particle.second;
+
           // The cell the particle is in
           Point<dim> current_reference_position;
           bool       found_cell = false;
 
           // Check if the particle is in one of the old cell's neighbors
           // that are adjacent to the closest vertex
-          typename Triangulation<dim, spacedim>::active_cell_iterator
-            current_cell = out_particle->get_surrounding_cell(*triangulation);
-
           const unsigned int closest_vertex =
             GridTools::find_closest_vertex_of_cell<dim, spacedim>(
               current_cell, out_particle->get_location());
@@ -1132,7 +1152,7 @@ namespace Particles
           for (unsigned int i = 0; i < n_neighbor_cells; ++i)
             neighbor_permutation[i] = i;
 
-          const auto cell_centers =
+          const auto &cell_centers =
             vertex_to_cell_centers[closest_vertex_index];
           std::sort(neighbor_permutation.begin(),
                     neighbor_permutation.end(),
@@ -1235,8 +1255,14 @@ namespace Particles
       }
 #endif
 
-    remove_particles(particles_out_of_cell);
-    update_cached_numbers();
+    std::vector<particle_iterator> removed_particles;
+    removed_particles.reserve(particles_out_of_cell.size());
+
+    for (const auto &cell_and_particle : particles_out_of_cell)
+      removed_particles.push_back(cell_and_particle.second);
+
+    // remove_particles also calls update_cached_numbers()
+    remove_particles(removed_particles);
   } // namespace Particles
 
 
@@ -1746,7 +1772,7 @@ namespace Particles
         // Update particle data using previously allocated memory space
         // for efficiency reasons
         recv_data_it =
-          recv_particle->second.read_particle_data_from_memory(recv_data_it);
+          recv_particle->read_particle_data_from_memory(recv_data_it);
 
         if (load_callback)
           recv_data_it =
