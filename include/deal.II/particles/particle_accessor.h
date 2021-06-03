@@ -328,7 +328,7 @@ namespace Particles
                (*particles)[active_cell_index].size(),
            ExcInternalError());
 
-    (*particles)[active_cell_index][particle_index_within_cell]
+    return (*particles)[active_cell_index][particle_index_within_cell]
       .read_particle_data_from_memory(data);
   }
 
