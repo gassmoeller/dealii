@@ -190,24 +190,6 @@ namespace Particles
     get_properties() const;
 
     /**
-     * Update all of the data associated with a particle : id,
-     * location, reference location and, if any, properties by using a
-     * data array. The array is expected to be large enough to take the data,
-     * and the void pointer should point to the first entry of the array to
-     * which the data should be written. This function is meant for
-     * de-serializing the particle data without requiring that a new Particle
-     * class be built. This is used in the ParticleHandler to update the
-     * ghost particles without de-allocating and re-allocating memory.
-     *
-     * @param[in,out] data A pointer to a memory location from which
-     * to read the information that completely describes a particle. This
-     * class then de-serializes its data from this memory location and
-     * advance the pointer accordingly.
-     */
-    void
-    update_particle_data(const void *&data);
-
-    /**
      * Return the size in bytes this particle occupies if all of its data is
      * serialized (i.e. the number of bytes that is written by the write_data
      * function of this class).
@@ -264,14 +246,15 @@ namespace Particles
     ParticleAccessor();
 
     /**
-     * Construct an accessor from a reference to a map and an iterator to the
-     * map. This constructor is `private` so that it can only be accessed by
+     * Construct an accessor from a reference to a container and indices to the
+     * current cell and the particle index within that cell.
+     * This constructor is `private` so that it can only be accessed by
      * friend classes.
      */
     ParticleAccessor(
       const std::vector<std::vector<Particle<dim, spacedim>>> &particles,
       const unsigned int active_cell_index,
-      const unsigned int particle_index);
+      const unsigned int particle_index_within_cell);
 
   private:
     /**
@@ -281,12 +264,14 @@ namespace Particles
     std::vector<std::vector<Particle<dim, spacedim>>> *particles;
 
     /**
-     * An iterator into the container of particles. Obviously,
-     * this accessor is invalidated if the container changes.
+     * Index to the cell this particle is stored in at the moment.
      */
     unsigned int active_cell_index;
 
-    unsigned int particle_index;
+    /**
+     * Local index of the particle within its current cell.
+     */
+    unsigned int particle_index_within_cell;
 
     // Make ParticleIterator a friend to allow it constructing
     // ParticleAccessors.
@@ -304,8 +289,8 @@ namespace Particles
   ParticleAccessor<dim, spacedim>::serialize(Archive &          ar,
                                              const unsigned int version)
   {
-    return (*particles)[active_cell_index][particle_index].serialize(ar,
-                                                                     version);
+    return (*particles)[active_cell_index][particle_index_within_cell]
+      .serialize(ar, version);
   }
 
 
@@ -315,7 +300,7 @@ namespace Particles
   inline ParticleAccessor<dim, spacedim>::ParticleAccessor()
     : particles(nullptr)
     , active_cell_index()
-    , particle_index()
+    , particle_index_within_cell()
   {}
 
 
@@ -324,11 +309,11 @@ namespace Particles
   inline ParticleAccessor<dim, spacedim>::ParticleAccessor(
     const std::vector<std::vector<Particle<dim, spacedim>>> &particles,
     const unsigned int                                       active_cell_index,
-    const unsigned int                                       particle_index)
+    const unsigned int particle_index_within_cell)
     : particles(const_cast<std::vector<std::vector<Particle<dim, spacedim>>> *>(
         &particles))
     , active_cell_index(active_cell_index)
-    , particle_index(particle_index)
+    , particle_index_within_cell(particle_index_within_cell)
   {}
 
 
@@ -339,10 +324,11 @@ namespace Particles
     const void *data)
   {
     Assert(active_cell_index < particles->size() &&
-             particle_index < (*particles)[active_cell_index].size(),
+             particle_index_within_cell <
+               (*particles)[active_cell_index].size(),
            ExcInternalError());
 
-    return (*particles)[active_cell_index][particle_index]
+    (*particles)[active_cell_index][particle_index_within_cell]
       .read_particle_data_from_memory(data);
   }
 
@@ -354,10 +340,11 @@ namespace Particles
     void *data) const
   {
     Assert(active_cell_index < particles->size() &&
-             particle_index < (*particles)[active_cell_index].size(),
+             particle_index_within_cell <
+               (*particles)[active_cell_index].size(),
            ExcInternalError());
 
-    return (*particles)[active_cell_index][particle_index]
+    return (*particles)[active_cell_index][particle_index_within_cell]
       .write_particle_data_to_memory(data);
   }
 
@@ -368,10 +355,12 @@ namespace Particles
   ParticleAccessor<dim, spacedim>::set_location(const Point<spacedim> &new_loc)
   {
     Assert(active_cell_index < particles->size() &&
-             particle_index < (*particles)[active_cell_index].size(),
+             particle_index_within_cell <
+               (*particles)[active_cell_index].size(),
            ExcInternalError());
 
-    (*particles)[active_cell_index][particle_index].set_location(new_loc);
+    (*particles)[active_cell_index][particle_index_within_cell].set_location(
+      new_loc);
   }
 
 
@@ -381,10 +370,12 @@ namespace Particles
   ParticleAccessor<dim, spacedim>::get_location() const
   {
     Assert(active_cell_index < particles->size() &&
-             particle_index < (*particles)[active_cell_index].size(),
+             particle_index_within_cell <
+               (*particles)[active_cell_index].size(),
            ExcInternalError());
 
-    return (*particles)[active_cell_index][particle_index].get_location();
+    return (*particles)[active_cell_index][particle_index_within_cell]
+      .get_location();
   }
 
 
@@ -395,11 +386,12 @@ namespace Particles
     const Point<dim> &new_loc)
   {
     Assert(active_cell_index < particles->size() &&
-             particle_index < (*particles)[active_cell_index].size(),
+             particle_index_within_cell <
+               (*particles)[active_cell_index].size(),
            ExcInternalError());
 
-    (*particles)[active_cell_index][particle_index].set_reference_location(
-      new_loc);
+    (*particles)[active_cell_index][particle_index_within_cell]
+      .set_reference_location(new_loc);
   }
 
 
@@ -409,10 +401,11 @@ namespace Particles
   ParticleAccessor<dim, spacedim>::get_reference_location() const
   {
     Assert(active_cell_index < particles->size() &&
-             particle_index < (*particles)[active_cell_index].size(),
+             particle_index_within_cell <
+               (*particles)[active_cell_index].size(),
            ExcInternalError());
 
-    return (*particles)[active_cell_index][particle_index]
+    return (*particles)[active_cell_index][particle_index_within_cell]
       .get_reference_location();
   }
 
@@ -423,10 +416,11 @@ namespace Particles
   ParticleAccessor<dim, spacedim>::get_id() const
   {
     Assert(active_cell_index < particles->size() &&
-             particle_index < (*particles)[active_cell_index].size(),
+             particle_index_within_cell <
+               (*particles)[active_cell_index].size(),
            ExcInternalError());
 
-    return (*particles)[active_cell_index][particle_index].get_id();
+    return (*particles)[active_cell_index][particle_index_within_cell].get_id();
   }
 
 
@@ -437,11 +431,12 @@ namespace Particles
     PropertyPool<dim, spacedim> &new_property_pool)
   {
     Assert(active_cell_index < particles->size() &&
-             particle_index < (*particles)[active_cell_index].size(),
+             particle_index_within_cell <
+               (*particles)[active_cell_index].size(),
            ExcInternalError());
 
-    (*particles)[active_cell_index][particle_index].set_property_pool(
-      new_property_pool);
+    (*particles)[active_cell_index][particle_index_within_cell]
+      .set_property_pool(new_property_pool);
   }
 
 
@@ -451,10 +446,12 @@ namespace Particles
   ParticleAccessor<dim, spacedim>::has_properties() const
   {
     Assert(active_cell_index < particles->size() &&
-             particle_index < (*particles)[active_cell_index].size(),
+             particle_index_within_cell <
+               (*particles)[active_cell_index].size(),
            ExcInternalError());
 
-    return (*particles)[active_cell_index][particle_index].has_properties();
+    return (*particles)[active_cell_index][particle_index_within_cell]
+      .has_properties();
   }
 
 
@@ -465,10 +462,11 @@ namespace Particles
     const std::vector<double> &new_properties)
   {
     Assert(active_cell_index < particles->size() &&
-             particle_index < (*particles)[active_cell_index].size(),
+             particle_index_within_cell <
+               (*particles)[active_cell_index].size(),
            ExcInternalError());
 
-    (*particles)[active_cell_index][particle_index].set_properties(
+    (*particles)[active_cell_index][particle_index_within_cell].set_properties(
       new_properties);
   }
 
@@ -480,10 +478,11 @@ namespace Particles
     const ArrayView<const double> &new_properties)
   {
     Assert(active_cell_index < particles->size() &&
-             particle_index < (*particles)[active_cell_index].size(),
+             particle_index_within_cell <
+               (*particles)[active_cell_index].size(),
            ExcInternalError());
 
-    (*particles)[active_cell_index][particle_index].set_properties(
+    (*particles)[active_cell_index][particle_index_within_cell].set_properties(
       new_properties);
   }
 
@@ -494,23 +493,12 @@ namespace Particles
   ParticleAccessor<dim, spacedim>::get_properties() const
   {
     Assert(active_cell_index < particles->size() &&
-             particle_index < (*particles)[active_cell_index].size(),
+             particle_index_within_cell <
+               (*particles)[active_cell_index].size(),
            ExcInternalError());
 
-    return (*particles)[active_cell_index][particle_index].get_properties();
-  }
-
-
-
-  template <int dim, int spacedim>
-  inline void
-  ParticleAccessor<dim, spacedim>::update_particle_data(const void *&data)
-  {
-    Assert(active_cell_index < particles->size() &&
-             particle_index < (*particles)[active_cell_index].size(),
-           ExcInternalError());
-
-    (*particles)[active_cell_index][particle_index].update_particle_data(data);
+    return (*particles)[active_cell_index][particle_index_within_cell]
+      .get_properties();
   }
 
 
@@ -521,7 +509,8 @@ namespace Particles
     const Triangulation<dim, spacedim> &triangulation) const
   {
     Assert(active_cell_index < particles->size() &&
-             particle_index < (*particles)[active_cell_index].size(),
+             particle_index_within_cell <
+               (*particles)[active_cell_index].size(),
            ExcInternalError());
 
     typename Triangulation<dim, spacedim>::active_cell_iterator cell =
@@ -537,10 +526,12 @@ namespace Particles
   ParticleAccessor<dim, spacedim>::get_properties()
   {
     Assert(active_cell_index < particles->size() &&
-             particle_index < (*particles)[active_cell_index].size(),
+             particle_index_within_cell <
+               (*particles)[active_cell_index].size(),
            ExcInternalError());
 
-    return (*particles)[active_cell_index][particle_index].get_properties();
+    return (*particles)[active_cell_index][particle_index_within_cell]
+      .get_properties();
   }
 
 
@@ -550,10 +541,11 @@ namespace Particles
   ParticleAccessor<dim, spacedim>::serialized_size_in_bytes() const
   {
     Assert(active_cell_index < particles->size() &&
-             particle_index < (*particles)[active_cell_index].size(),
+             particle_index_within_cell <
+               (*particles)[active_cell_index].size(),
            ExcInternalError());
 
-    return (*particles)[active_cell_index][particle_index]
+    return (*particles)[active_cell_index][particle_index_within_cell]
       .serialized_size_in_bytes();
   }
 
@@ -564,11 +556,12 @@ namespace Particles
   ParticleAccessor<dim, spacedim>::next()
   {
     Assert(active_cell_index < particles->size() &&
-             particle_index < (*particles)[active_cell_index].size(),
+             particle_index_within_cell <
+               (*particles)[active_cell_index].size(),
            ExcInternalError());
-    ++particle_index;
+    ++particle_index_within_cell;
 
-    if (particle_index > (*particles)[active_cell_index].size() - 1)
+    if (particle_index_within_cell > (*particles)[active_cell_index].size() - 1)
       {
         do
           {
@@ -577,7 +570,7 @@ namespace Particles
         while ((*particles)[active_cell_index].size() == 0 &&
                active_cell_index < (*particles).size());
 
-        particle_index = 0;
+        particle_index_within_cell = 0;
       }
   }
 
@@ -587,10 +580,11 @@ namespace Particles
   inline void
   ParticleAccessor<dim, spacedim>::prev()
   {
-    Assert(active_cell_index != 0 || particle_index != 0, ExcInternalError());
+    Assert(active_cell_index != 0 || particle_index_within_cell != 0,
+           ExcInternalError());
 
-    if (particle_index > 0)
-      --particle_index;
+    if (particle_index_within_cell > 0)
+      --particle_index_within_cell;
     else
       {
         do
@@ -601,7 +595,7 @@ namespace Particles
                active_cell_index > 0);
 
         Assert((*particles)[active_cell_index].size() > 0, ExcInternalError());
-        particle_index = (*particles)[active_cell_index].size() - 1;
+        particle_index_within_cell = (*particles)[active_cell_index].size() - 1;
       }
   }
 
@@ -624,7 +618,7 @@ namespace Particles
   {
     return (particles == other.particles) &&
            (active_cell_index == other.active_cell_index) &&
-           (particle_index == other.particle_index);
+           (particle_index_within_cell == other.particle_index_within_cell);
   }
 
 

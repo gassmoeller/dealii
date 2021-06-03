@@ -46,12 +46,12 @@ namespace Particles
 
     /**
      * Constructor of the iterator. Takes a reference to the particle
-     * container, and an iterator to the cell-particle pair.
+     * container, and indices to the cell and particle within that cell.
      */
     ParticleIterator(
       const std::vector<std::vector<Particle<dim, spacedim>>> &particles,
       const unsigned int active_cell_index,
-      const unsigned int particle_index);
+      const unsigned int particle_index_within_cell);
 
     /**
      * Dereferencing operator, returns a reference to an accessor. Usage is thus
@@ -147,8 +147,8 @@ namespace Particles
   inline ParticleIterator<dim, spacedim>::ParticleIterator(
     const std::vector<std::vector<Particle<dim, spacedim>>> &particles,
     const unsigned int                                       active_cell_index,
-    const unsigned int                                       particle_index)
-    : accessor(particles, active_cell_index, particle_index)
+    const unsigned int particle_index_within_cell)
+    : accessor(particles, active_cell_index, particle_index_within_cell)
   {}
 
 

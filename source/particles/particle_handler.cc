@@ -235,8 +235,7 @@ namespace Particles
     types::particle_index locally_highest_index        = 0;
     unsigned int          local_max_particles_per_cell = 0;
 
-    for (const std::vector<Particle<dim, spacedim>> &particles_in_cell :
-         particles)
+    for (const auto &particles_in_cell : particles)
       {
         const unsigned int n_particles_in_cell = particles_in_cell.size();
 
@@ -339,13 +338,13 @@ namespace Particles
           }
         else
           {
-            auto end =
-              particle_iterator(container,
-                                active_cell_index,
-                                container[active_cell_index].size() - 1);
-            end++;
-            return boost::make_iterator_range(
-              particle_iterator(container, active_cell_index, 0), end);
+            particle_iterator begin(container, active_cell_index, 0);
+            particle_iterator end(container,
+                                  active_cell_index,
+                                  container[active_cell_index].size() - 1);
+            ++end;
+
+            return boost::make_iterator_range(begin, end);
           }
       }
     else
@@ -364,12 +363,11 @@ namespace Particles
   ParticleHandler<dim, spacedim>::remove_particle(
     const ParticleHandler<dim, spacedim>::particle_iterator &particle)
   {
-    const unsigned int active_cell_index =
-      particle->get_surrounding_cell(*triangulation)->active_cell_index();
+    const unsigned int active_cell_index = particle->active_cell_index;
 
     if (particles[active_cell_index].size() > 1)
       {
-        particles[active_cell_index][particle->particle_index] =
+        particles[active_cell_index][particle->particle_index_within_cell] =
           std::move(particles[active_cell_index].back());
         particles[active_cell_index].resize(
           particles[active_cell_index].size() - 1);
@@ -412,8 +410,8 @@ namespace Particles
             if (n_particles_removed != particles_to_remove.size() &&
                 particles_to_remove[n_particles_removed]->active_cell_index ==
                   cell_index &&
-                particles_to_remove[n_particles_removed]->particle_index ==
-                  move_from)
+                particles_to_remove[n_particles_removed]
+                    ->particle_index_within_cell == move_from)
               {
                 ++n_particles_removed;
                 continue;
@@ -444,23 +442,25 @@ namespace Particles
     if (particles.size() == 0)
       particles.resize(triangulation->n_active_cells());
 
-    typename Triangulation<dim, spacedim>::active_cell_iterator cell_to_insert;
+    typename Triangulation<dim, spacedim>::active_cell_iterator
+      cell_to_insert_particle;
 
     if (cell->is_locally_owned())
-      cell_to_insert = cell;
+      cell_to_insert_particle = cell;
     else
       {
-        cell_to_insert = triangulation->begin_active();
-        while (cell_to_insert->is_locally_owned() == false)
-          ++cell_to_insert;
+        cell_to_insert_particle = triangulation->begin_active();
+        while (cell_to_insert_particle->is_locally_owned() == false)
+          ++cell_to_insert_particle;
 
         Assert(
-          cell_to_insert->is_locally_owned(),
+          cell_to_insert_particle->is_locally_owned(),
           ExcMessage(
             "ParticleHandler<dim, spacedim>::insert_particle can only insert particles into locally owned cells, but none was found."));
       }
 
-    const unsigned int active_cell_index = cell_to_insert->active_cell_index();
+    const unsigned int active_cell_index =
+      cell_to_insert_particle->active_cell_index();
     particles[active_cell_index].push_back(particle);
     ++local_number_of_particles;
 
@@ -556,7 +556,6 @@ namespace Particles
 
     for (unsigned int i = 0; i < cells.size(); ++i)
       {
-        internal::LevelInd current_cell(cells[i]->level(), cells[i]->index());
         const unsigned int active_cell_index = cells[i]->active_cell_index();
 
         for (unsigned int p = 0; p < local_positions[i].size(); ++p)
@@ -1056,7 +1055,7 @@ namespace Particles
         real_locations.reserve(n_pic);
         reference_locations.resize(n_pic);
 
-        for (const auto particle : pic)
+        for (const auto &particle : pic)
           real_locations.push_back(particle.get_location());
 
         ArrayView<Point<dim>> reference(reference_locations.data(),
@@ -1104,10 +1103,10 @@ namespace Particles
             &*triangulation))
       ghost_owners = parallel_triangulation->ghost_owners();
 
-    for (const auto ghost_owner : ghost_owners)
+    for (const auto &ghost_owner : ghost_owners)
       moved_particles[ghost_owner].reserve(
         static_cast<vector_size>(particles_out_of_cell.size() * 0.25));
-    for (const auto ghost_owner : ghost_owners)
+    for (const auto &ghost_owner : ghost_owners)
       moved_cells[ghost_owner].reserve(
         static_cast<vector_size>(particles_out_of_cell.size() * 0.25));
 
@@ -1138,7 +1137,7 @@ namespace Particles
           // that are adjacent to the closest vertex
           const unsigned int closest_vertex =
             GridTools::find_closest_vertex_of_cell<dim, spacedim>(
-              current_cell, out_particle->get_location());
+              current_cell, out_particle->get_location(), *mapping);
           Tensor<1, spacedim> vertex_to_particle =
             out_particle->get_location() - current_cell->vertex(closest_vertex);
           vertex_to_particle /= vertex_to_particle.norm();
@@ -1232,7 +1231,7 @@ namespace Particles
                 current_cell->active_cell_index();
               particles[active_cell_index].push_back(
                 std::move(particles[out_particle->active_cell_index]
-                                   [out_particle->particle_index]));
+                                   [out_particle->particle_index_within_cell]));
             }
           else
             {
@@ -1312,7 +1311,7 @@ namespace Particles
         if (cell->is_locally_owned())
           {
             std::set<unsigned int> cell_to_neighbor_subdomain;
-            for (const unsigned int v : GeometryInfo<dim>::vertex_indices())
+            for (const unsigned int v : cell->vertex_indices())
               {
                 cell_to_neighbor_subdomain.insert(
                   vertex_to_neighbor_subdomain[cell->vertex_index(v)].begin(),
@@ -1648,7 +1647,7 @@ namespace Particles
         recv_data_it = static_cast<const char *>(recv_data_it) + cellid_size;
 
         const typename Triangulation<dim, spacedim>::active_cell_iterator cell =
-          id.to_cell(*triangulation);
+          triangulation->create_cell_iterator(id);
 
         const unsigned int active_cell_index = cell->active_cell_index();
         received_particles[active_cell_index].push_back(
@@ -1775,11 +1774,11 @@ namespace Particles
           recv_particle->read_particle_data_from_memory(recv_data_it);
 
         if (load_callback)
-          recv_data_it =
-            load_callback(particle_iterator(updated_particles,
-                                            recv_particle->active_cell_index,
-                                            recv_particle->particle_index),
-                          recv_data_it);
+          recv_data_it = load_callback(
+            particle_iterator(updated_particles,
+                              recv_particle->active_cell_index,
+                              recv_particle->particle_index_within_cell),
+            recv_data_it);
       }
 
     AssertThrow(recv_data_it == recv_data.data() + recv_data.size(),
@@ -1916,8 +1915,8 @@ namespace Particles
 
     switch (status)
       {
-        case parallel::distributed::Triangulation<dim, spacedim>::CELL_PERSIST:
-        case parallel::distributed::Triangulation<dim, spacedim>::CELL_REFINE:
+        case parallel::TriangulationBase<dim, spacedim>::CELL_PERSIST:
+        case parallel::TriangulationBase<dim, spacedim>::CELL_REFINE:
           // If the cell persist or is refined store all particles of the
           // current cell.
           {
@@ -1925,7 +1924,7 @@ namespace Particles
           }
           break;
 
-        case parallel::distributed::Triangulation<dim, spacedim>::CELL_COARSEN:
+        case parallel::TriangulationBase<dim, spacedim>::CELL_COARSEN:
           // If this cell is the parent of children that will be coarsened,
           // collect the particles of all children.
           {
