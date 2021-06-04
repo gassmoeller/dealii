@@ -19,6 +19,11 @@
 
 #include <deal.II/base/array_view.h>
 
+#include <deal.II/fe/mapping_q.h>
+
+#include <deal.II/grid/grid_generator.h>
+#include <deal.II/grid/tria.h>
+
 #include <deal.II/particles/particle.h>
 #include <deal.II/particles/particle_iterator.h>
 
@@ -30,6 +35,11 @@ void
 test()
 {
   {
+    Triangulation<dim> tr;
+
+    GridGenerator::hyper_cube(tr);
+    MappingQ<dim> mapping(1);
+
     const unsigned int           n_properties_per_particle = 3;
     Particles::PropertyPool<dim> pool(n_properties_per_particle);
 
@@ -59,13 +69,17 @@ test()
 
     particle_container[0].push_back(particle);
 
-    Particles::ParticleIterator<dim> particle_begin(particle_container, 0, 0);
-    Particles::ParticleIterator<dim> particle_end(particle_container, 1, 0);
+    Particles::ParticleIterator<dim> particle_begin(particle_container,
+                                                    tr.begin(),
+                                                    0);
+    Particles::ParticleIterator<dim> particle_end(particle_container,
+                                                  tr.end(),
+                                                  0);
     Particles::ParticleIterator<dim> particle_nonexistent1(particle_container,
-                                                           0,
+                                                           tr.begin(),
                                                            1);
     Particles::ParticleIterator<dim> particle_nonexistent2(particle_container,
-                                                           1,
+                                                           tr.end(),
                                                            1);
     Particles::ParticleIterator<dim> particle_invalid;
 

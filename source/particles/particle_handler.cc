@@ -343,14 +343,14 @@ namespace Particles
         if (container[active_cell_index].size() == 0)
           {
             return boost::make_iterator_range(
-              particle_iterator(container, active_cell_index, 0),
-              particle_iterator(container, active_cell_index, 0));
+              particle_iterator(container, cell, 0),
+              particle_iterator(container, cell, 0));
           }
         else
           {
-            particle_iterator begin(container, active_cell_index, 0);
+            particle_iterator begin(container, cell, 0);
             particle_iterator end(container,
-                                  active_cell_index,
+                                  cell,
                                   container[active_cell_index].size() - 1);
             ++end;
 
@@ -475,7 +475,7 @@ namespace Particles
     ++local_number_of_particles;
 
     particle_iterator particle_it(particles,
-                                  active_cell_index,
+                                  cell_to_insert_particle,
                                   particles[active_cell_index].size() - 1);
     particle_it->set_property_pool(*property_pool);
 
@@ -1665,7 +1665,7 @@ namespace Particles
 
         particle_iterator particle_it(
           received_particles,
-          active_cell_index,
+          cell,
           received_particles[active_cell_index].size() - 1);
         particle_it->set_property_pool(*property_pool);
 
@@ -1786,7 +1786,7 @@ namespace Particles
         if (load_callback)
           recv_data_it = load_callback(
             particle_iterator(updated_particles,
-                              recv_particle->active_cell_index,
+                              recv_particle->cell,
                               recv_particle->particle_index_within_cell),
             recv_data_it);
       }

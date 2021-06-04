@@ -1061,9 +1061,10 @@ namespace Particles
   inline typename ParticleHandler<dim, spacedim>::particle_iterator
   ParticleHandler<dim, spacedim>::begin()
   {
-    for (unsigned int i = 0; i < particles.size(); ++i)
-      if (particles[i].size() != 0)
-        return particle_iterator(particles, i, 0);
+    for (const auto &cell : triangulation->active_cell_iterators())
+      if (cell->is_locally_owned() &&
+          particles[cell->active_cell_index()].size() != 0)
+        return particle_iterator(particles, cell, 0);
 
     return end();
   }
@@ -1083,7 +1084,7 @@ namespace Particles
   inline typename ParticleHandler<dim, spacedim>::particle_iterator
   ParticleHandler<dim, spacedim>::end()
   {
-    return particle_iterator(particles, triangulation->n_active_cells(), 0);
+    return particle_iterator(particles, triangulation->end(), 0);
   }
 
 
@@ -1100,9 +1101,10 @@ namespace Particles
   inline typename ParticleHandler<dim, spacedim>::particle_iterator
   ParticleHandler<dim, spacedim>::begin_ghost()
   {
-    for (unsigned int i = 0; i < ghost_particles.size(); ++i)
-      if (ghost_particles[i].size() != 0)
-        return particle_iterator(ghost_particles, i, 0);
+    for (const auto &cell : triangulation->active_cell_iterators())
+      if (cell->is_locally_owned() == false &&
+          ghost_particles[cell->active_cell_index()].size() != 0)
+        return particle_iterator(ghost_particles, cell, 0);
 
     return end_ghost();
   }
@@ -1122,9 +1124,7 @@ namespace Particles
   inline typename ParticleHandler<dim, spacedim>::particle_iterator
   ParticleHandler<dim, spacedim>::end_ghost()
   {
-    return particle_iterator(ghost_particles,
-                             triangulation->n_active_cells(),
-                             0);
+    return particle_iterator(ghost_particles, triangulation->end(), 0);
   }
 
 

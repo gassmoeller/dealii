@@ -49,8 +49,8 @@ namespace Particles
      * container, and indices to the cell and particle within that cell.
      */
     ParticleIterator(
-      const std::vector<std::vector<Particle<dim, spacedim>>> &particles,
-      const unsigned int active_cell_index,
+      const std::vector<std::vector<Particle<dim, spacedim>>> &  particles,
+      const typename Triangulation<dim, spacedim>::cell_iterator cell,
       const unsigned int particle_index_within_cell);
 
     /**
@@ -151,10 +151,10 @@ namespace Particles
 
   template <int dim, int spacedim>
   inline ParticleIterator<dim, spacedim>::ParticleIterator(
-    const std::vector<std::vector<Particle<dim, spacedim>>> &particles,
-    const unsigned int                                       active_cell_index,
+    const std::vector<std::vector<Particle<dim, spacedim>>> &  particles,
+    const typename Triangulation<dim, spacedim>::cell_iterator cell,
     const unsigned int particle_index_within_cell)
-    : accessor(particles, active_cell_index, particle_index_within_cell)
+    : accessor(particles, cell, particle_index_within_cell)
   {}
 
 

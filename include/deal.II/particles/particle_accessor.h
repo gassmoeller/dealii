@@ -264,9 +264,10 @@ namespace Particles
      * This constructor is `private` so that it can only be accessed by
      * friend classes.
      */
-    ParticleAccessor(const particle_container &particles,
-                     const unsigned int        active_cell_index,
-                     const unsigned int        particle_index_within_cell);
+    ParticleAccessor(
+      const particle_container &particles,
+      const typename Triangulation<dim, spacedim>::active_cell_iterator &cell,
+      const unsigned int particle_index_within_cell);
 
     /**
      * Returns a reference to the current Particle. Because the
@@ -287,6 +288,11 @@ namespace Particles
      * this accessor is invalidated if the container changes.
      */
     particle_container *particles;
+
+    /**
+     * Cell iterator to the cell of the current particle.
+     */
+    typename Triangulation<dim, spacedim>::active_cell_iterator cell;
 
     /**
      * Index to the cell this particle is stored in at the moment.
@@ -323,6 +329,7 @@ namespace Particles
   template <int dim, int spacedim>
   inline ParticleAccessor<dim, spacedim>::ParticleAccessor()
     : particles(nullptr)
+    , cell()
     , active_cell_index(numbers::invalid_unsigned_int)
     , particle_index_within_cell(numbers::invalid_unsigned_int)
   {}
@@ -332,12 +339,19 @@ namespace Particles
   template <int dim, int spacedim>
   inline ParticleAccessor<dim, spacedim>::ParticleAccessor(
     const particle_container &particles,
-    const unsigned int        active_cell_index,
-    const unsigned int        particle_index_within_cell)
+    const typename Triangulation<dim, spacedim>::active_cell_iterator &cell,
+    const unsigned int particle_index_within_cell)
     : particles(const_cast<particle_container *>(&particles))
-    , active_cell_index(active_cell_index)
+    , cell(cell)
     , particle_index_within_cell(particle_index_within_cell)
-  {}
+  {
+    if (cell.state() == IteratorState::valid)
+      active_cell_index = cell->active_cell_index();
+    else if (cell.state() == IteratorState::past_the_end)
+      active_cell_index = particles.size();
+    else
+      active_cell_index = numbers::invalid_unsigned_int;
+  }
 
 
 
@@ -482,13 +496,10 @@ namespace Particles
   template <int dim, int spacedim>
   inline typename Triangulation<dim, spacedim>::cell_iterator
   ParticleAccessor<dim, spacedim>::get_surrounding_cell(
-    const Triangulation<dim, spacedim> &triangulation) const
+    const Triangulation<dim, spacedim> & /*triangulation*/) const
   {
     Assert(state() == IteratorState::valid, ExcInternalError());
 
-    typename Triangulation<dim, spacedim>::active_cell_iterator cell =
-      triangulation.begin_active();
-    std::advance(cell, active_cell_index);
     return cell;
   }
 
@@ -530,6 +541,7 @@ namespace Particles
 
         do
           {
+            ++cell;
             ++active_cell_index;
           }
         while ((*particles)[active_cell_index].size() == 0 &&
@@ -554,11 +566,13 @@ namespace Particles
             if (active_cell_index == 0)
               {
                 // Set to past-the-end state
+                cell                       = cell->get_triangulation().end();
                 active_cell_index          = particles->size();
                 particle_index_within_cell = 0;
                 break;
               }
 
+            --cell;
             --active_cell_index;
 
             if ((*particles)[active_cell_index].size() > 0)
@@ -589,7 +603,7 @@ namespace Particles
   ParticleAccessor<dim, spacedim>::
   operator==(const ParticleAccessor<dim, spacedim> &other) const
   {
-    return (particles == other.particles) &&
+    return (particles == other.particles) && (cell == other.cell) &&
            (active_cell_index == other.active_cell_index) &&
            (particle_index_within_cell == other.particle_index_within_cell);
   }
@@ -600,10 +614,13 @@ namespace Particles
   inline IteratorState::IteratorStates
   ParticleAccessor<dim, spacedim>::state() const
   {
-    if (particles != nullptr && active_cell_index < particles->size() &&
+    if (particles != nullptr && cell.state() == IteratorState::valid &&
+        active_cell_index < particles->size() &&
         particle_index_within_cell < (*particles)[active_cell_index].size())
       return IteratorState::valid;
-    else if (particles != nullptr && active_cell_index == particles->size() &&
+    else if (particles != nullptr &&
+             cell.state() == IteratorState::past_the_end &&
+             active_cell_index == particles->size() &&
              particle_index_within_cell == 0)
       return IteratorState::past_the_end;
     else
