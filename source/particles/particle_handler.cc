@@ -337,7 +337,7 @@ namespace Particles
 
     if (cell->is_artificial() == false)
       {
-        std::vector<std::vector<Particle<dim, spacedim>>> &container =
+        particle_container &container =
           (cell->is_locally_owned() == true) ? particles : ghost_particles;
 
         if (container[active_cell_index].size() == 0)
@@ -1394,8 +1394,8 @@ namespace Particles
   void
   ParticleHandler<dim, spacedim>::send_recv_particles(
     const std::map<types::subdomain_id, std::vector<particle_iterator>>
-      &                                                particles_to_send,
-    std::vector<std::vector<Particle<dim, spacedim>>> &received_particles,
+      &                 particles_to_send,
+    particle_container &received_particles,
     const std::map<
       types::subdomain_id,
       std::vector<typename Triangulation<dim, spacedim>::active_cell_iterator>>
@@ -1690,8 +1690,8 @@ namespace Particles
   void
   ParticleHandler<dim, spacedim>::send_recv_particles_properties_and_location(
     const std::map<types::subdomain_id, std::vector<particle_iterator>>
-      &                                                particles_to_send,
-    std::vector<std::vector<Particle<dim, spacedim>>> &updated_particles)
+      &                 particles_to_send,
+    particle_container &updated_particles)
   {
     const auto &neighbors     = ghost_particles_cache.neighbors;
     const auto &send_pointers = ghost_particles_cache.send_pointers;

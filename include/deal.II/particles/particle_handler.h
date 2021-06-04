@@ -72,6 +72,12 @@ namespace Particles
     using particle_iterator_range = boost::iterator_range<particle_iterator>;
 
     /**
+     * A type for the storage container for particles.
+     */
+    using particle_container =
+      std::vector<std::vector<Particle<dim, spacedim>>>;
+
+    /**
      * Default constructor.
      */
     ParticleHandler();
@@ -844,13 +850,13 @@ namespace Particles
      * Set of particles currently living in the local domain, organized by
      * the level/index of the cell they are in.
      */
-    std::vector<std::vector<Particle<dim, spacedim>>> particles;
+    particle_container particles;
 
     /**
      * Set of particles currently living in the local domain, organized by
      * the level/index of the cell they are in.
      */
-    std::vector<std::vector<Particle<dim, spacedim>>> ghost_particles;
+    particle_container ghost_particles;
 
     /**
      * This variable stores how many particles are stored globally. It is
