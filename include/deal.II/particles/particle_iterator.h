@@ -122,6 +122,12 @@ namespace Particles
     operator--(int);
 
     /**
+     * Return the state of the iterator.
+     */
+    IteratorState::IteratorStates
+    state() const;
+
+    /**
      * Mark the class as bidirectional iterator and declare some alias which
      * are standard for iterators and are used by algorithms to enquire about
      * the specifics of the iterators they work on.
@@ -251,6 +257,14 @@ namespace Particles
     return tmp;
   }
 
+
+
+  template <int dim, int spacedim>
+  inline IteratorState::IteratorStates
+  ParticleIterator<dim, spacedim>::state() const
+  {
+    return accessor.state();
+  }
 
 } // namespace Particles
 
