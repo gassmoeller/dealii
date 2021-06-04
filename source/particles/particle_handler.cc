@@ -232,12 +232,12 @@ namespace Particles
   ParticleHandler<dim, spacedim>::update_cached_numbers()
   {
     local_number_of_particles                          = 0;
-    types::particle_index locally_highest_index        = 0;
-    unsigned int          local_max_particles_per_cell = 0;
+    types::particle_index local_max_particle_index     = 0;
+    types::particle_index local_max_particles_per_cell = 0;
 
     for (const auto &particles_in_cell : particles)
       {
-        const unsigned int n_particles_in_cell = particles_in_cell.size();
+        const types::particle_index n_particles_in_cell = particles_in_cell.size();
 
         local_max_particles_per_cell =
           std::max(local_max_particles_per_cell, n_particles_in_cell);
@@ -245,8 +245,8 @@ namespace Particles
 
         for (const auto &particle : particles_in_cell)
           {
-            locally_highest_index =
-              std::max(locally_highest_index, particle.get_id());
+            local_max_particle_index =
+              std::max(local_max_particle_index, particle.get_id());
           }
       }
 
@@ -257,22 +257,31 @@ namespace Particles
         global_number_of_particles = dealii::Utilities::MPI::sum(
           local_number_of_particles,
           parallel_triangulation->get_communicator());
-        next_free_particle_index =
-          global_number_of_particles == 0 ?
-            0 :
-            dealii::Utilities::MPI::max(
-              locally_highest_index,
-              parallel_triangulation->get_communicator()) +
-              1;
-        global_max_particles_per_cell = dealii::Utilities::MPI::max(
-          local_max_particles_per_cell,
-          parallel_triangulation->get_communicator());
+
+        if (global_number_of_particles == 0)
+          {
+            next_free_particle_index      = 0;
+            global_max_particles_per_cell = 0;
+          }
+        else
+          {
+            types::particle_index local_max_values[2] = {
+              local_max_particle_index, local_max_particles_per_cell};
+            types::particle_index global_max_values[2];
+
+            Utilities::MPI::max(local_max_values,
+                                parallel_triangulation->get_communicator(),
+                                global_max_values);
+
+            next_free_particle_index      = global_max_values[0]+1;
+            global_max_particles_per_cell = global_max_values[1];
+          }
       }
     else
       {
         global_number_of_particles = local_number_of_particles;
         next_free_particle_index =
-          global_number_of_particles == 0 ? 0 : locally_highest_index + 1;
+          global_number_of_particles == 0 ? 0 : local_max_particle_index + 1;
         global_max_particles_per_cell = local_max_particles_per_cell;
       }
   }
@@ -1043,6 +1052,8 @@ namespace Particles
     // Now update the reference locations of the moved particles
     std::vector<Point<spacedim>> real_locations;
     std::vector<Point<dim>>      reference_locations;
+    real_locations.reserve(global_max_particles_per_cell);
+    reference_locations.reserve(global_max_particles_per_cell);
 
     for (const auto &cell : triangulation->active_cell_iterators())
       {
@@ -1050,19 +1061,16 @@ namespace Particles
           continue;
 
         auto               pic   = particles_in_cell(cell);
-        const unsigned int n_pic = n_particles_in_cell(cell);
-        real_locations.clear();
-        real_locations.reserve(n_pic);
-        reference_locations.resize(n_pic);
+        const unsigned int n_pic = particles[cell->active_cell_index()].size();
 
+        real_locations.clear();
         for (const auto &particle : pic)
           real_locations.push_back(particle.get_location());
 
-        ArrayView<Point<dim>> reference(reference_locations.data(),
-                                        reference_locations.size());
+        reference_locations.resize(n_pic);
         mapping->transform_points_real_to_unit_cell(cell,
                                                     real_locations,
-                                                    reference);
+                                                    reference_locations);
 
         auto particle = pic.begin();
         for (const auto &p_unit : reference_locations)
@@ -1112,14 +1120,15 @@ namespace Particles
 
     {
       // Create a map from vertices to adjacent cells using grid cache
-      std::vector<
+      const std::vector<
         std::set<typename Triangulation<dim, spacedim>::active_cell_iterator>>
-        vertex_to_cells = triangulation_cache->get_vertex_to_cell_map();
+        &vertex_to_cells = triangulation_cache->get_vertex_to_cell_map();
 
-      // Create a corresponding map of vectors from vertex to cell center using
-      // grid cache
-      std::vector<std::vector<Tensor<1, spacedim>>> vertex_to_cell_centers =
-        triangulation_cache->get_vertex_to_cell_centers_directions();
+      // Create a corresponding map of vectors from vertex to cell center
+      // using grid cache
+      const std::vector<std::vector<Tensor<1, spacedim>>>
+        &vertex_to_cell_centers =
+          triangulation_cache->get_vertex_to_cell_centers_directions();
 
       std::vector<unsigned int> neighbor_permutation;
 
@@ -1163,9 +1172,9 @@ namespace Particles
                                                           cell_centers);
                     });
 
-          // make a copy of the current cell, since we will modify the variable
-          // current_cell in the following but we need a backup in the case
-          // the particle is not found
+          // make a copy of the current cell, since we will modify the
+          // variable current_cell in the following but we need a backup in
+          // the case the particle is not found
           const auto previous_cell_of_particle = current_cell;
 
           // Search all of the cells adjacent to the closest vertex of the
