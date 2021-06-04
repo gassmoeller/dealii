@@ -237,7 +237,8 @@ namespace Particles
 
     for (const auto &particles_in_cell : particles)
       {
-        const types::particle_index n_particles_in_cell = particles_in_cell.size();
+        const types::particle_index n_particles_in_cell =
+          particles_in_cell.size();
 
         local_max_particles_per_cell =
           std::max(local_max_particles_per_cell, n_particles_in_cell);
@@ -273,7 +274,7 @@ namespace Particles
                                 parallel_triangulation->get_communicator(),
                                 global_max_values);
 
-            next_free_particle_index      = global_max_values[0]+1;
+            next_free_particle_index      = global_max_values[0] + 1;
             global_max_particles_per_cell = global_max_values[1];
           }
       }
