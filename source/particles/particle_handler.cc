@@ -451,36 +451,19 @@ namespace Particles
     const typename Triangulation<dim, spacedim>::active_cell_iterator &cell)
   {
     Assert(triangulation != nullptr, ExcInternalError());
+    Assert(cell.state() == IteratorState::valid, ExcInternalError());
 
     if (particles.size() == 0)
       particles.resize(triangulation->n_active_cells());
 
-    typename Triangulation<dim, spacedim>::active_cell_iterator
-      cell_to_insert_particle;
-
-    if (cell->is_locally_owned())
-      cell_to_insert_particle = cell;
-    else
-      {
-        cell_to_insert_particle = triangulation->begin_active();
-        while (cell_to_insert_particle->is_locally_owned() == false)
-          ++cell_to_insert_particle;
-
-        Assert(
-          cell_to_insert_particle->is_locally_owned(),
-          ExcMessage(
-            "ParticleHandler<dim, spacedim>::insert_particle can only insert particles into locally owned cells, but none was found."));
-      }
-
-    const unsigned int active_cell_index =
-      cell_to_insert_particle->active_cell_index();
+    const unsigned int active_cell_index = cell->active_cell_index();
     particles[active_cell_index].push_back(particle);
-    ++local_number_of_particles;
-
     particle_iterator particle_it(particles,
-                                  cell_to_insert_particle,
+                                  cell,
                                   particles[active_cell_index].size() - 1);
     particle_it->set_property_pool(*property_pool);
+
+    ++local_number_of_particles;
 
     return particle_it;
   }
