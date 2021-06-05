@@ -211,6 +211,14 @@ namespace Particles
      * operation requires a reference to the triangulation.
      */
     typename Triangulation<dim, spacedim>::cell_iterator
+    get_surrounding_cell() const;
+
+    /**
+     * @deprecated: Deprecated version of the function with the same
+     * name above.
+     */
+    DEAL_II_DEPRECATED
+    typename Triangulation<dim, spacedim>::cell_iterator
     get_surrounding_cell(
       const Triangulation<dim, spacedim> &triangulation) const;
 
@@ -259,8 +267,8 @@ namespace Particles
     ParticleAccessor();
 
     /**
-     * Construct an accessor from a reference to a container and indices to the
-     * current cell and the particle index within that cell.
+     * Construct an accessor from a reference to a container, an iterator to the
+     * current cell, and the particle index within that cell.
      * This constructor is `private` so that it can only be accessed by
      * friend classes.
      */
@@ -295,7 +303,9 @@ namespace Particles
     typename Triangulation<dim, spacedim>::active_cell_iterator cell;
 
     /**
-     * Index to the cell this particle is stored in at the moment.
+     * Index to the cell this particle is stored in at the moment. This could be
+     * read from the member variable cell, but is used in many performance
+     * critical functions and is therefore stored and updated separately.
      */
     unsigned int active_cell_index;
 
@@ -489,6 +499,17 @@ namespace Particles
     Assert(state() == IteratorState::valid, ExcInternalError());
 
     return get_particle().get_properties();
+  }
+
+
+
+  template <int dim, int spacedim>
+  inline typename Triangulation<dim, spacedim>::cell_iterator
+  ParticleAccessor<dim, spacedim>::get_surrounding_cell() const
+  {
+    Assert(state() == IteratorState::valid, ExcInternalError());
+
+    return cell;
   }
 
 

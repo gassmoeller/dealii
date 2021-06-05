@@ -94,6 +94,7 @@ namespace Particles
     , mapping()
     , property_pool(std::make_unique<PropertyPool<dim, spacedim>>(0))
     , particles()
+    , ghost_particles()
     , global_number_of_particles(0)
     , local_number_of_particles(0)
     , global_max_particles_per_cell(0)
@@ -352,6 +353,8 @@ namespace Particles
             particle_iterator end(container,
                                   cell,
                                   container[active_cell_index].size() - 1);
+            // end needs to point to the particle after the last one in the
+            // cell.
             ++end;
 
             return boost::make_iterator_range(begin, end);
@@ -1499,9 +1502,8 @@ namespace Particles
                 typename Triangulation<dim, spacedim>::active_cell_iterator
                   cell;
                 if (send_cells.size() == 0)
-                  cell =
-                    particles_to_send.at(neighbors[i])[j]->get_surrounding_cell(
-                      *triangulation);
+                  cell = particles_to_send.at(neighbors[i])[j]
+                           ->get_surrounding_cell();
                 else
                   cell = send_cells.at(neighbors[i])[j];
 

@@ -224,7 +224,7 @@ namespace Particles
 
       while (particle != particle_handler.end())
         {
-          const auto &cell = particle->get_surrounding_cell(tria);
+          const auto &cell = particle->get_surrounding_cell();
           const auto &dh_cell =
             typename DoFHandler<dim, spacedim>::cell_iterator(*cell, &field_dh);
           dh_cell->get_dof_indices(dof_indices);
