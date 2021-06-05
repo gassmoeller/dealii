@@ -1029,10 +1029,7 @@ namespace Particles
     // TODO: Extend this function to allow keeping particles on other
     // processes around (with an invalid cell).
 
-    std::vector<
-      std::pair<typename Triangulation<dim, spacedim>::active_cell_iterator,
-                particle_iterator>>
-      particles_out_of_cell;
+    std::vector<particle_iterator> particles_out_of_cell;
 
     particles_out_of_cell.reserve(n_locally_owned_particles() / 4);
 
@@ -1044,11 +1041,25 @@ namespace Particles
 
     for (const auto &cell : triangulation->active_cell_iterators())
       {
-        if (cell->is_locally_owned() == false)
-          continue;
+        const unsigned int active_cell_index = cell->active_cell_index();
+        const unsigned int n_pic = particles[active_cell_index].size();
 
-        auto               pic   = particles_in_cell(cell);
-        const unsigned int n_pic = particles[cell->active_cell_index()].size();
+        // Particles can be inserted into arbitrary cells, e.g. if their cell is
+        // not known. However, for artificial cells we can not check evaluate
+        // the reference position of particles and particles in ghost cells
+        // should not be owned by this process. Assume all particles that are in
+        // not locally owned cells have to be resorted or transferred.
+        if (cell->is_locally_owned() == false)
+          {
+            for (unsigned int i = 0; i < n_pic; ++i)
+              {
+                particles_out_of_cell.push_back(
+                  particle_iterator(particles, cell, i));
+              }
+            continue;
+          }
+
+        auto pic = particles_in_cell(cell);
 
         real_locations.clear();
         for (const auto &particle : pic)
@@ -1064,7 +1075,7 @@ namespace Particles
           {
             if (p_unit[0] == std::numeric_limits<double>::infinity() ||
                 !GeometryInfo<dim>::is_inside_unit_cell(p_unit))
-              particles_out_of_cell.push_back(std::make_pair(cell, particle));
+              particles_out_of_cell.push_back(particle);
             else
               particle->set_reference_location(p_unit);
 
@@ -1120,10 +1131,12 @@ namespace Particles
       std::vector<unsigned int> neighbor_permutation;
 
       // Find the cells that the particles moved to.
-      for (auto &cell_and_particle : particles_out_of_cell)
+      for (auto &out_particle : particles_out_of_cell)
         {
-          auto &current_cell = cell_and_particle.first;
-          auto &out_particle = cell_and_particle.second;
+          // make a copy of the current cell, since we will modify the
+          // variable current_cell in the following but we need the original in
+          // the case the particle is not found
+          auto current_cell = out_particle->get_surrounding_cell();
 
           // The cell the particle is in
           Point<dim> current_reference_position;
@@ -1158,11 +1171,6 @@ namespace Particles
                                                           vertex_to_particle,
                                                           cell_centers);
                     });
-
-          // make a copy of the current cell, since we will modify the
-          // variable current_cell in the following but we need a backup in
-          // the case the particle is not found
-          const auto previous_cell_of_particle = current_cell;
 
           // Search all of the cells adjacent to the closest vertex of the
           // previous cell Most likely we will find the particle in them.
@@ -1210,7 +1218,7 @@ namespace Particles
                   // domain due to an integration error or an open boundary.
                   // Signal the loss and move on.
                   signals.particle_lost(out_particle,
-                                        previous_cell_of_particle);
+                                        out_particle->get_surrounding_cell());
                   continue;
                 }
             }
@@ -1250,14 +1258,8 @@ namespace Particles
       }
 #endif
 
-    std::vector<particle_iterator> removed_particles;
-    removed_particles.reserve(particles_out_of_cell.size());
-
-    for (const auto &cell_and_particle : particles_out_of_cell)
-      removed_particles.push_back(cell_and_particle.second);
-
     // remove_particles also calls update_cached_numbers()
-    remove_particles(removed_particles);
+    remove_particles(particles_out_of_cell);
   } // namespace Particles
 
 

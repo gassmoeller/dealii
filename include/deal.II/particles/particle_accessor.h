@@ -210,7 +210,7 @@ namespace Particles
      * but the triangulation itself is not stored in the particle this
      * operation requires a reference to the triangulation.
      */
-    typename Triangulation<dim, spacedim>::cell_iterator
+    const typename Triangulation<dim, spacedim>::cell_iterator &
     get_surrounding_cell() const;
 
     /**
@@ -218,7 +218,7 @@ namespace Particles
      * name above.
      */
     DEAL_II_DEPRECATED
-    typename Triangulation<dim, spacedim>::cell_iterator
+    const typename Triangulation<dim, spacedim>::cell_iterator &
     get_surrounding_cell(
       const Triangulation<dim, spacedim> &triangulation) const;
 
@@ -504,7 +504,7 @@ namespace Particles
 
 
   template <int dim, int spacedim>
-  inline typename Triangulation<dim, spacedim>::cell_iterator
+  inline const typename Triangulation<dim, spacedim>::cell_iterator &
   ParticleAccessor<dim, spacedim>::get_surrounding_cell() const
   {
     Assert(state() == IteratorState::valid, ExcInternalError());
@@ -515,7 +515,7 @@ namespace Particles
 
 
   template <int dim, int spacedim>
-  inline typename Triangulation<dim, spacedim>::cell_iterator
+  inline const typename Triangulation<dim, spacedim>::cell_iterator &
   ParticleAccessor<dim, spacedim>::get_surrounding_cell(
     const Triangulation<dim, spacedim> & /*triangulation*/) const
   {

@@ -63,9 +63,6 @@ test()
     typename Triangulation<dim, spacedim>::active_cell_iterator cell =
       tr.begin_active();
 
-    while (cell->is_locally_owned() == false)
-      ++cell;
-
     particle_handler.insert_particle(particle, cell);
     particle_handler.sort_particles_into_subdomains_and_cells();
     particle_handler.exchange_ghost_particles();
