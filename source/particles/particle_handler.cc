@@ -1971,7 +1971,7 @@ namespace Particles
 
     switch (status)
       {
-        case parallel::distributed::Triangulation<dim, spacedim>::CELL_PERSIST:
+        case parallel::TriangulationBase<dim, spacedim>::CELL_PERSIST:
           {
             particles[cell->active_cell_index()].insert(
               particles[cell->active_cell_index()].end(),
@@ -1980,7 +1980,7 @@ namespace Particles
           }
           break;
 
-        case parallel::distributed::Triangulation<dim, spacedim>::CELL_COARSEN:
+        case parallel::TriangulationBase<dim, spacedim>::CELL_COARSEN:
           {
             const unsigned int active_cell_index = cell->active_cell_index();
 
@@ -1995,7 +1995,7 @@ namespace Particles
           }
           break;
 
-        case parallel::distributed::Triangulation<dim, spacedim>::CELL_REFINE:
+        case parallel::TriangulationBase<dim, spacedim>::CELL_REFINE:
           {
             for (auto &particle : loaded_particles_on_cell)
               {

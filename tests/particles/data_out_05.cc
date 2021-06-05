@@ -71,10 +71,10 @@ test()
                                                                       0);
 
     if (Utilities::MPI::this_mpi_process(tr.get_communicator()) == 0)
-    {
-      auto particle_it = particle_handler.insert_particle(particle1, cell1);
-    particle_it->set_properties(properties);
-    }
+      {
+        auto particle_it = particle_handler.insert_particle(particle1, cell1);
+        particle_it->set_properties(properties);
+      }
 
     particle_handler.update_cached_numbers();
 
