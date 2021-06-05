@@ -344,7 +344,6 @@ namespace Step19
           }
 
     triangulation.refine_global(1);
-    particle_handler.initialize(triangulation, mapping, dim);
   }
 
 
@@ -556,7 +555,6 @@ namespace Step19
                                                     0.03);
 
     triangulation.execute_coarsening_and_refinement();
-    particle_handler.initialize(triangulation, mapping, dim);
   }
 
 

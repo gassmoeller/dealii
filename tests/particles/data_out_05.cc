@@ -76,8 +76,6 @@ test()
         particle_it->set_properties(properties);
       }
 
-    particle_handler.update_cached_numbers();
-
     std::vector<std::string> data_names;
     std::vector<DataComponentInterpretation::DataComponentInterpretation>
       data_interpretations;

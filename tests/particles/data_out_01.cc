@@ -70,7 +70,6 @@ test()
 
     particle_handler.insert_particle(particle1, cell1);
     particle_handler.insert_particle(particle2, cell2);
-    particle_handler.update_cached_numbers();
 
     Particles::DataOut<dim, spacedim> particle_output;
     particle_output.build_patches(particle_handler);

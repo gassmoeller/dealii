@@ -197,7 +197,6 @@ namespace Particles
           return; // nothing else to do here
         }
 
-      const auto &tria     = field_dh.get_triangulation();
       const auto &fe       = field_dh.get_fe();
       auto        particle = particle_handler.begin();
 

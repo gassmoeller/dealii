@@ -89,7 +89,6 @@ create_regular_particle_distribution(
               pit->get_properties()[i] = pit->get_location()[i];
           }
       }
-  particle_handler.update_cached_numbers();
 }
 
 template <int dim, int spacedim>
