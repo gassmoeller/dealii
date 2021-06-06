@@ -376,7 +376,7 @@ namespace Particles
   ParticleHandler<dim, spacedim>::remove_particle(
     const ParticleHandler<dim, spacedim>::particle_iterator &particle)
   {
-    const unsigned int active_cell_index = particle->active_cell_index;
+    const unsigned int active_cell_index = particle->get_surrounding_cell()->active_cell_index();
 
     if (particles[active_cell_index].size() > 1)
       {
@@ -411,7 +411,7 @@ namespace Particles
           break;
 
         // Skip cells where there is nothing to remove
-        if (particles_to_remove[n_particles_removed]->active_cell_index !=
+        if (particles_to_remove[n_particles_removed]->get_surrounding_cell()->active_cell_index() !=
             cell_index)
           continue;
 
@@ -421,7 +421,7 @@ namespace Particles
              ++move_from)
           {
             if (n_particles_removed != particles_to_remove.size() &&
-                particles_to_remove[n_particles_removed]->active_cell_index ==
+                particles_to_remove[n_particles_removed]->get_surrounding_cell()->active_cell_index() ==
                   cell_index &&
                 particles_to_remove[n_particles_removed]
                     ->particle_index_within_cell == move_from)
@@ -1234,7 +1234,7 @@ namespace Particles
               const unsigned int active_cell_index =
                 current_cell->active_cell_index();
               particles[active_cell_index].push_back(
-                std::move(particles[out_particle->active_cell_index]
+                std::move(particles[out_particle->get_surrounding_cell()->active_cell_index()]
                                    [out_particle->particle_index_within_cell]));
             }
           else
