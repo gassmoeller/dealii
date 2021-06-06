@@ -550,8 +550,8 @@ namespace Particles
           {
             ++cell;
           }
-        while ((*particles)[cell->active_cell_index()].size() == 0 &&
-               cell->active_cell_index() < (*particles).size());
+        while (cell.state() == IteratorState::valid &&
+               (*particles)[cell->active_cell_index()].size() == 0);
       }
   }
 
@@ -569,15 +569,9 @@ namespace Particles
       {
         do
           {
-            if (cell->active_cell_index() == 0)
-              {
-                // Set to past-the-end state
-                cell                       = cell->get_triangulation().end();
-                particle_index_within_cell = 0;
-                break;
-              }
-
             --cell;
+            if (cell.state() != IteratorState::valid)
+              break;
 
             if ((*particles)[cell->active_cell_index()].size() > 0)
               {
