@@ -556,7 +556,8 @@ namespace Particles
 
     ++particle_index_within_cell;
 
-    if (particle_index_within_cell > (*particles)[active_cell_index].size() - 1)
+    if (particle_index_within_cell >
+        (*particles)[cell->active_cell_index()].size() - 1)
       {
         particle_index_within_cell = 0;
 
@@ -565,8 +566,8 @@ namespace Particles
             ++cell;
             ++active_cell_index;
           }
-        while ((*particles)[active_cell_index].size() == 0 &&
-               active_cell_index < (*particles).size());
+        while ((*particles)[cell->active_cell_index()].size() == 0 &&
+               cell->active_cell_index() < (*particles).size());
       }
   }
 
@@ -584,7 +585,7 @@ namespace Particles
       {
         do
           {
-            if (active_cell_index == 0)
+            if (cell->active_cell_index() == 0)
               {
                 // Set to past-the-end state
                 cell                       = cell->get_triangulation().end();
@@ -596,14 +597,14 @@ namespace Particles
             --cell;
             --active_cell_index;
 
-            if ((*particles)[active_cell_index].size() > 0)
+            if ((*particles)[cell->active_cell_index()].size() > 0)
               {
                 particle_index_within_cell =
-                  (*particles)[active_cell_index].size() - 1;
+                  (*particles)[cell->active_cell_index()].size() - 1;
                 break;
               }
           }
-        while ((*particles)[active_cell_index].size() == 0);
+        while ((*particles)[cell->active_cell_index()].size() == 0);
       }
   }
 
@@ -637,7 +638,8 @@ namespace Particles
   {
     if (particles != nullptr && cell.state() == IteratorState::valid &&
         active_cell_index < particles->size() &&
-        particle_index_within_cell < (*particles)[active_cell_index].size())
+        particle_index_within_cell <
+          (*particles)[cell->active_cell_index()].size())
       return IteratorState::valid;
     else if (particles != nullptr &&
              cell.state() == IteratorState::past_the_end &&
@@ -656,7 +658,7 @@ namespace Particles
   inline Particle<dim, spacedim> &
   ParticleAccessor<dim, spacedim>::get_particle()
   {
-    return (*particles)[active_cell_index][particle_index_within_cell];
+    return (*particles)[cell->active_cell_index()][particle_index_within_cell];
   }
 
 
@@ -665,7 +667,7 @@ namespace Particles
   inline const Particle<dim, spacedim> &
   ParticleAccessor<dim, spacedim>::get_particle() const
   {
-    return (*particles)[active_cell_index][particle_index_within_cell];
+    return (*particles)[cell->active_cell_index()][particle_index_within_cell];
   }
 
 } // namespace Particles
