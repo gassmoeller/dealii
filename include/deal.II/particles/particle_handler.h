@@ -838,6 +838,10 @@ namespace Particles
      */
     particle_container particles;
 
+
+    std::vector<std::pair<CellId, typename PropertyPool<dim, spacedim>::Handle>>
+      serialized_particle_handles;
+
     /**
      * This variable stores how many particles are stored globally. It is
      * calculated by update_cached_numbers().
@@ -1044,6 +1048,12 @@ namespace Particles
       const typename Triangulation<dim, spacedim>::CellStatus     status,
       const boost::iterator_range<std::vector<char>::const_iterator>
         &data_range);
+
+    void
+    serialize_particles_pre_local_refinement();
+
+    void
+    deserialize_particles_post_local_refinement();
   };
 
 

@@ -1992,6 +1992,72 @@ namespace Particles
   }
 
 
+  template <int dim, int spacedim>
+  void
+  ParticleHandler<dim, spacedim>::serialize_particles_pre_local_refinement()
+  {
+    serialized_particle_handles.reserve(local_number_of_particles);
+
+    for (const auto particle : *this)
+      serialized_particle_handles.push_back(
+        std::make_pair(particle.cell->id(), particle.get_handle()));
+  }
+
+  template <int dim, int spacedim>
+  void
+  ParticleHandler<dim, spacedim>::deserialize_particles_post_local_refinement()
+  {
+    clear_particles();
+
+    for (const auto &particle : serialized_particle_handles)
+      {
+        const typename Triangulation<dim, spacedim>::cell_iterator cell =
+          triangulation->create_cell_iterator(particle.first);
+        if (cell->is_active())
+          {
+            particles[cell->active_cell_index()].push_back(particle.second);
+          }
+        else if (cell->child(0)->is_active())
+          {
+            // refined case
+            for (unsigned int child_index = 0;
+                 child_index < GeometryInfo<dim>::max_children_per_cell;
+                 ++child_index)
+              {
+                const typename Triangulation<dim,
+                                             spacedim>::active_cell_iterator
+                  child = cell->child(child_index);
+
+                try
+                  {
+                    const Point<dim> p_unit =
+                      mapping->transform_real_to_unit_cell(
+                        child, property_pool->get_location(particle.second));
+                    if (GeometryInfo<dim>::is_inside_unit_cell(p_unit))
+                      {
+                        property_pool->set_reference_location(particle.second,
+                                                              p_unit);
+                        particles[child->active_cell_index()].push_back(
+                          particle.second);
+                      }
+                  }
+                catch (typename Mapping<dim>::ExcTransformationFailed &)
+                  {}
+              }
+          }
+        else if (cell->parent()->is_active())
+          {
+            // coarsened case
+            particles[cell->parent()->active_cell_index()].push_back(
+              particle.second);
+
+            const Point<dim> p_unit = mapping->transform_real_to_unit_cell(
+              cell->parent(), property_pool->get_location(particle.second));
+            property_pool->set_reference_location(particle.second, p_unit);
+          }
+      }
+  }
+
 
   template <int dim, int spacedim>
   std::vector<char>
