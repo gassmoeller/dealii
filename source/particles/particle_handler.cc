@@ -90,13 +90,7 @@ namespace Particles
     triangulation_cache =
       std::make_unique<GridTools::Cache<dim, spacedim>>(triangulation, mapping);
 
-    triangulation.signals.create.connect([&]() { this->clear_particles(); });
-    triangulation.signals.post_refinement.connect(
-      [&]() { this->clear_particles(); });
-    triangulation.signals.post_distributed_repartition.connect(
-      [&]() { this->clear_particles(); });
-    triangulation.signals.post_distributed_load.connect(
-      [&]() { this->clear_particles(); });
+    connect_to_signals();
   }
 
 
@@ -119,18 +113,7 @@ namespace Particles
     triangulation = &new_triangulation;
     mapping       = &new_mapping;
 
-    // Note that we connect all signals 'at_front' in case user code
-    // connected the register_store_callback_function and
-    // register_load_callback_function functions already to the new
-    // triangulation. We want to clear before loading.
-    triangulation->signals.create.connect([&]() { this->clear_particles(); },
-                                          boost::signals2::at_front);
-    triangulation->signals.post_distributed_refinement.connect(
-      [&]() { this->clear_particles(); }, boost::signals2::at_front);
-    triangulation->signals.post_distributed_repartition.connect(
-      [&]() { this->clear_particles(); }, boost::signals2::at_front);
-    triangulation->signals.post_distributed_load.connect(
-      [&]() { this->clear_particles(); }, boost::signals2::at_front);
+    connect_to_signals();
 
     // Create the memory pool that will store all particle properties
     property_pool = std::make_unique<PropertyPool<dim, spacedim>>(n_properties);
@@ -1847,10 +1830,63 @@ namespace Particles
   }
 
 
+  template <int dim, int spacedim>
+  void
+  ParticleHandler<dim, spacedim>::connect_to_signals()
+  {
+    triangulation->signals.create.connect([&]() { this->clear_particles(); });
+
+    // for distributed triangulations, connect to distributed signals
+    if (dynamic_cast<const parallel::DistributedTriangulationBase<dim, spacedim>
+                       *>(&(*triangulation)) != nullptr)
+      {
+        triangulation->signals.post_distributed_refinement.connect(
+          [&]() { this->clear_particles(); });
+        triangulation->signals.post_distributed_repartition.connect(
+          [&]() { this->clear_particles(); });
+        triangulation->signals.post_distributed_load.connect(
+          [&]() { this->clear_particles(); });
+
+        triangulation->signals.pre_distributed_repartition.connect(
+          [&]() { this->register_store_callback(); });
+
+        triangulation->signals.post_distributed_repartition.connect(
+          [&]() { this->register_load_callback(false); });
+
+        triangulation->signals.pre_distributed_refinement.connect(
+          [&]() { this->register_store_callback(); });
+
+        triangulation->signals.post_distributed_refinement.connect(
+          [&]() { this->register_load_callback(false); });
+
+        triangulation->signals.pre_distributed_save.connect(
+          [&]() { this->register_store_callback(); });
+
+        triangulation->signals.post_distributed_load.connect(
+          [&]() { this->register_load_callback(true); });
+      }
+    else
+      {
+        triangulation->signals.post_refinement.connect(
+          [&]() { this->clear_particles(); });
+      }
+  }
+
+
 
   template <int dim, int spacedim>
   void
   ParticleHandler<dim, spacedim>::register_store_callback_function()
+  {
+    // do nothing, this function is deprecated and only kept for backward
+    // compatibility.
+  }
+
+
+
+  template <int dim, int spacedim>
+  void
+  ParticleHandler<dim, spacedim>::register_store_callback()
   {
     parallel::distributed::Triangulation<dim, spacedim>
       *non_const_triangulation =
@@ -1888,6 +1924,17 @@ namespace Particles
   template <int dim, int spacedim>
   void
   ParticleHandler<dim, spacedim>::register_load_callback_function(
+    const bool /*serialization*/)
+  {
+    // do nothing, this function is deprecated and only kept for backward
+    // compatibility.
+  }
+
+
+
+  template <int dim, int spacedim>
+  void
+  ParticleHandler<dim, spacedim>::register_load_callback(
     const bool serialization)
   {
     parallel::distributed::Triangulation<dim, spacedim>

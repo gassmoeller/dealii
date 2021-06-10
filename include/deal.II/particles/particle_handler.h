@@ -718,20 +718,20 @@ namespace Particles
     update_ghost_particles();
 
     /**
-     * Callback function that should be called before every refinement
-     * and when writing checkpoints. This function is used to
-     * register store_particles() with the triangulation. This function
-     * is used in step-70.
+     * @deprecated: This function is now renamed 'register_store_callback', made
+     * private, and connected automatically. The public implementation remains
+     * for backward compatibility, but does nothing.
      */
+    DEAL_II_DEPRECATED
     void
     register_store_callback_function();
 
     /**
-     * Callback function that should be called after every refinement
-     * and after resuming from a checkpoint.  This function is used to
-     * register load_particles() with the triangulation. This function
-     * is used in step-70.
+     * @deprecated: This function is now renamed 'register_load_callback', made
+     * private, and connected automatically. The public implementation remains
+     * for backward compatibility, but does nothing.
      */
+    DEAL_II_DEPRECATED
     void
     register_load_callback_function(const bool serialization);
 
@@ -1000,6 +1000,29 @@ namespace Particles
      * is only used to update the ghost particles.
      */
     internal::GhostParticlePartitioner<dim, spacedim> ghost_particles_cache;
+
+    /**
+     * Connect the particle handler to the relevant triangulation signals to
+     * appropriately react to changes in the underlying triangulation.
+     */
+    void
+    connect_to_signals();
+
+    /**
+     * Callback function that should be called before every refinement
+     * and when writing checkpoints. This function is used to
+     * register store_particles() with the triangulation.
+     */
+    void
+    register_store_callback();
+
+    /**
+     * Callback function that should be called after every refinement
+     * and after resuming from a checkpoint.  This function is used to
+     * register load_particles() with the triangulation.
+     */
+    void
+    register_load_callback(const bool serialization);
 
     /**
      * Called by listener functions from Triangulation for every cell
