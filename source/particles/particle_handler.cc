@@ -65,6 +65,7 @@ namespace Particles
     , store_callback()
     , load_callback()
     , handle(numbers::invalid_unsigned_int)
+    , connections()
   {}
 
 
@@ -86,6 +87,7 @@ namespace Particles
     , store_callback()
     , load_callback()
     , handle(numbers::invalid_unsigned_int)
+    , connections()
   {
     triangulation_cache =
       std::make_unique<GridTools::Cache<dim, spacedim>>(triangulation, mapping);
@@ -99,6 +101,9 @@ namespace Particles
   ParticleHandler<dim, spacedim>::~ParticleHandler()
   {
     clear_particles();
+
+    for (const auto &connection: connections)
+      connection.disconnect();
   }
 
 
@@ -110,6 +115,11 @@ namespace Particles
     const Mapping<dim, spacedim> &      new_mapping,
     const unsigned int                  n_properties)
   {
+    for (const auto &connection: connections)
+      connection.disconnect();
+
+    connections.clear();
+
     triangulation = &new_triangulation;
     mapping       = &new_mapping;
 
@@ -1834,41 +1844,41 @@ namespace Particles
   void
   ParticleHandler<dim, spacedim>::connect_to_signals()
   {
-    triangulation->signals.create.connect([&]() { this->clear_particles(); });
+    connections.push_back(triangulation->signals.create.connect([&]() { this->clear_particles(); }));
 
     // for distributed triangulations, connect to distributed signals
     if (dynamic_cast<const parallel::DistributedTriangulationBase<dim, spacedim>
                        *>(&(*triangulation)) != nullptr)
       {
-        triangulation->signals.post_distributed_refinement.connect(
-          [&]() { this->clear_particles(); });
-        triangulation->signals.post_distributed_repartition.connect(
-          [&]() { this->clear_particles(); });
-        triangulation->signals.post_distributed_load.connect(
-          [&]() { this->clear_particles(); });
+        connections.push_back(triangulation->signals.post_distributed_refinement.connect(
+          [&]() { this->clear_particles(); }));
+        connections.push_back(triangulation->signals.post_distributed_repartition.connect(
+          [&]() { this->clear_particles(); }));
+        connections.push_back(triangulation->signals.post_distributed_load.connect(
+          [&]() { this->clear_particles(); }));
 
-        triangulation->signals.pre_distributed_repartition.connect(
-          [&]() { this->register_store_callback(); });
+        connections.push_back(triangulation->signals.pre_distributed_repartition.connect(
+          [&]() { this->register_store_callback(); }));
 
-        triangulation->signals.post_distributed_repartition.connect(
-          [&]() { this->register_load_callback(false); });
+        connections.push_back(triangulation->signals.post_distributed_repartition.connect(
+          [&]() { this->register_load_callback(false); }));
 
-        triangulation->signals.pre_distributed_refinement.connect(
-          [&]() { this->register_store_callback(); });
+        connections.push_back(triangulation->signals.pre_distributed_refinement.connect(
+          [&]() { this->register_store_callback(); }));
 
-        triangulation->signals.post_distributed_refinement.connect(
-          [&]() { this->register_load_callback(false); });
+        connections.push_back(triangulation->signals.post_distributed_refinement.connect(
+          [&]() { this->register_load_callback(false); }));
 
-        triangulation->signals.pre_distributed_save.connect(
-          [&]() { this->register_store_callback(); });
+        connections.push_back(triangulation->signals.pre_distributed_save.connect(
+          [&]() { this->register_store_callback(); }));
 
-        triangulation->signals.post_distributed_load.connect(
-          [&]() { this->register_load_callback(true); });
+        connections.push_back(triangulation->signals.post_distributed_load.connect(
+          [&]() { this->register_load_callback(true); }));
       }
     else
       {
-        triangulation->signals.post_refinement.connect(
-          [&]() { this->clear_particles(); });
+        connections.push_back(triangulation->signals.post_refinement.connect(
+          [&]() { this->clear_particles(); }));
       }
   }
 

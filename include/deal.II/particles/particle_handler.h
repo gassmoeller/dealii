@@ -1013,6 +1013,13 @@ namespace Particles
     connect_to_signals();
 
     /**
+     * A vector of all currently active connections to the triangulation
+     * signals. This vector is needed to properly disconnect signals
+     * during the destructor and the initialize() function.
+     */
+    std::vector<boost::signals2::connection> connections;
+
+    /**
      * Callback function that should be called before every refinement
      * and when writing checkpoints. This function is used to
      * register store_particles() with the triangulation.
