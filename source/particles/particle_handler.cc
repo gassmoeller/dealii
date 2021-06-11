@@ -65,7 +65,7 @@ namespace Particles
     , store_callback()
     , load_callback()
     , handle(numbers::invalid_unsigned_int)
-    , connections()
+    , tria_listeners()
   {}
 
 
@@ -87,12 +87,12 @@ namespace Particles
     , store_callback()
     , load_callback()
     , handle(numbers::invalid_unsigned_int)
-    , connections()
+    , tria_listeners()
   {
     triangulation_cache =
       std::make_unique<GridTools::Cache<dim, spacedim>>(triangulation, mapping);
 
-    connect_to_signals();
+    connect_to_triangulation_signals();
   }
 
 
@@ -102,7 +102,7 @@ namespace Particles
   {
     clear_particles();
 
-    for (const auto &connection: connections)
+    for (const auto &connection : tria_listeners)
       connection.disconnect();
   }
 
@@ -115,15 +115,15 @@ namespace Particles
     const Mapping<dim, spacedim> &      new_mapping,
     const unsigned int                  n_properties)
   {
-    for (const auto &connection: connections)
+    for (const auto &connection : tria_listeners)
       connection.disconnect();
 
-    connections.clear();
+    tria_listeners.clear();
 
     triangulation = &new_triangulation;
     mapping       = &new_mapping;
 
-    connect_to_signals();
+    connect_to_triangulation_signals();
 
     // Create the memory pool that will store all particle properties
     property_pool = std::make_unique<PropertyPool<dim, spacedim>>(n_properties);
@@ -1842,44 +1842,66 @@ namespace Particles
 
   template <int dim, int spacedim>
   void
-  ParticleHandler<dim, spacedim>::connect_to_signals()
+  ParticleHandler<dim, spacedim>::connect_to_triangulation_signals()
   {
-    connections.push_back(triangulation->signals.create.connect([&]() { this->clear_particles(); }));
+    tria_listeners.push_back(triangulation->signals.create.connect([&]() {
+      this->initialize(*(this->triangulation),
+                       *(this->mapping),
+                       this->property_pool->n_properties_per_slot());
+    }));
 
     // for distributed triangulations, connect to distributed signals
     if (dynamic_cast<const parallel::DistributedTriangulationBase<dim, spacedim>
                        *>(&(*triangulation)) != nullptr)
       {
-        connections.push_back(triangulation->signals.post_distributed_refinement.connect(
-          [&]() { this->clear_particles(); }));
-        connections.push_back(triangulation->signals.post_distributed_repartition.connect(
-          [&]() { this->clear_particles(); }));
-        connections.push_back(triangulation->signals.post_distributed_load.connect(
-          [&]() { this->clear_particles(); }));
-
-        connections.push_back(triangulation->signals.pre_distributed_repartition.connect(
-          [&]() { this->register_store_callback(); }));
-
-        connections.push_back(triangulation->signals.post_distributed_repartition.connect(
-          [&]() { this->register_load_callback(false); }));
-
-        connections.push_back(triangulation->signals.pre_distributed_refinement.connect(
-          [&]() { this->register_store_callback(); }));
-
-        connections.push_back(triangulation->signals.post_distributed_refinement.connect(
-          [&]() { this->register_load_callback(false); }));
-
-        connections.push_back(triangulation->signals.pre_distributed_save.connect(
-          [&]() { this->register_store_callback(); }));
-
-        connections.push_back(triangulation->signals.post_distributed_load.connect(
-          [&]() { this->register_load_callback(true); }));
+        tria_listeners.push_back(
+          triangulation->signals.post_distributed_refinement.connect(
+            [&]() { this->post_mesh_change_action(); }));
+        tria_listeners.push_back(
+          triangulation->signals.post_distributed_repartition.connect(
+            [&]() { this->post_mesh_change_action(); }));
+        tria_listeners.push_back(
+          triangulation->signals.post_distributed_load.connect(
+            [&]() { this->post_mesh_change_action(); }));
       }
     else
       {
-        connections.push_back(triangulation->signals.post_refinement.connect(
-          [&]() { this->clear_particles(); }));
+        tria_listeners.push_back(triangulation->signals.post_refinement.connect(
+          [&]() { this->post_mesh_change_action(); }));
       }
+  }
+
+
+
+  template <int dim, int spacedim>
+  void
+  ParticleHandler<dim, spacedim>::post_mesh_change_action()
+  {
+    Assert(triangulation != nullptr, ExcInternalError());
+
+    // Resize the container if it is possible without
+    // transferring particles
+    if (local_number_of_particles == 0)
+      particles.resize(triangulation->n_active_cells());
+  }
+
+
+
+  template <int dim, int spacedim>
+  void
+  ParticleHandler<dim,
+                  spacedim>::prepare_for_coarsening_and_refinement()
+  {
+    register_store_callback();
+  }
+
+
+
+  template <int dim, int spacedim>
+  void
+  ParticleHandler<dim, spacedim>::prepare_for_serialization()
+  {
+    register_store_callback();
   }
 
 
@@ -1888,8 +1910,7 @@ namespace Particles
   void
   ParticleHandler<dim, spacedim>::register_store_callback_function()
   {
-    // do nothing, this function is deprecated and only kept for backward
-    // compatibility.
+    register_store_callback();
   }
 
 
@@ -1933,11 +1954,31 @@ namespace Particles
 
   template <int dim, int spacedim>
   void
-  ParticleHandler<dim, spacedim>::register_load_callback_function(
-    const bool /*serialization*/)
+  ParticleHandler<dim, spacedim>::
+    transfer_after_coarsening_and_refinement()
   {
-    // do nothing, this function is deprecated and only kept for backward
-    // compatibility.
+    register_load_callback_function(false);
+  }
+
+
+
+  template <int dim, int spacedim>
+  void
+  ParticleHandler<dim, spacedim>::deserialize()
+  {
+    register_load_callback_function(true);
+  }
+
+
+  template <int dim, int spacedim>
+  void
+  ParticleHandler<dim, spacedim>::register_load_callback_function(
+    const bool serialization)
+  {
+    if (serialization == true)
+      deserialize();
+    else
+      transfer_after_coarsening_and_refinement();
   }
 
 

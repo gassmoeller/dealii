@@ -718,18 +718,77 @@ namespace Particles
     update_ghost_particles();
 
     /**
-     * @deprecated: This function is now renamed 'register_store_callback', made
-     * private, and connected automatically. The public implementation remains
-     * for backward compatibility, but does nothing.
+     * This function prepares the particle handler for a coarsening and
+     * refinement cycle, by storing the necessary information to transfer
+     * particles to their new cells. The implementation depends on the
+     * triangulation type that is connected to the particle handler and differs
+     * between shared and distributed triangulations. This function should be
+     * used like the corresponding function with the same name in the
+     * SolutionTransfer() class.
+     */
+    void
+    prepare_for_coarsening_and_refinement();
+
+    /**
+     * This function prepares the particle handler for a coarsening and
+     * refinement cycle, by storing the necessary information to transfer
+     * particles to their new cells. The implementation depends on the
+     * triangulation type that is connected to the particle handler and differs
+     * between shared and distributed triangulations. This function should be
+     * used like the corresponding function with the same name in the
+     * SolutionTransfer() class. See there for an example on how to use it.
+     *
+     * @note It is important to note, that if you do not call this function
+     * before a refinement/coarsening operation in a serial or shared
+     * triangulation, or a refinement/coarsening/repartitioning operation
+     * in a distributed triangulation and the particle handler contained
+     * particles before, the particle handler will not be usable after the mesh
+     * has been changed or repartioned. This is similar to not using a
+     * SolutionTransfer class to interpolate a solution vector and accessing the
+     * unchanged vector with the new dof indices.
+     */
+    void
+    transfer_after_coarsening_and_refinement();
+
+    /**
+     * This function prepares the particle handler for serialization.
+     * The implementation depends on the triangulation type that is
+     * connected to the particle handler and differs between shared and
+     * distributed triangulations. This function should be used like the
+     * corresponding function with the same name in the SolutionTransfer()
+     * class.
+     *
+     * @note It is important to note, that if you do not call this function
+     * before a serialization operation in a distributed triangulation, the
+     * particles will not be serialized.
+     */
+    void
+    prepare_for_serialization();
+
+    /**
+     * This function prepares the particle handler for serialization.
+     * The implementation depends on the triangulation type that is
+     * connected to the particle handler and differs between shared and
+     * distributed triangulations. This function should be used like the
+     * corresponding function with the same name in the SolutionTransfer()
+     * class.
+     */
+    void
+    deserialize();
+
+    /**
+     * @deprecated: Please use prepare_for_coarsening_and_refinement() or
+     * prepare_for_serialization() instead. See there for further information
+     * about the purpose of this function.
      */
     DEAL_II_DEPRECATED
     void
     register_store_callback_function();
 
     /**
-     * @deprecated: This function is now renamed 'register_load_callback', made
-     * private, and connected automatically. The public implementation remains
-     * for backward compatibility, but does nothing.
+     * @deprecated: Please use prepare_for_serialization() or deserialize()
+     * instead. See there for further information about the purpose of this
+     * function.
      */
     DEAL_II_DEPRECATED
     void
@@ -1010,14 +1069,24 @@ namespace Particles
      * appropriately react to changes in the underlying triangulation.
      */
     void
-    connect_to_signals();
+    connect_to_triangulation_signals();
 
     /**
-     * A vector of all currently active connections to the triangulation
-     * signals. This vector is needed to properly disconnect signals
-     * during the destructor and the initialize() function.
+     * Function that gets called by the triangulation signals if
+     * the structure of the mesh has changed. This function is
+     * responsible for resizing the particle container if no
+     * particles are stored, i.e. if the usual call to
+     * prepare_for_..., and transfer_particles_after_... functions
+     * is not necessary.
      */
-    std::vector<boost::signals2::connection> connections;
+    void
+    post_mesh_change_action();
+
+    /**
+     * A list of connections with which this object connects to the
+     * triangulation to get information about when the triangulation changes.
+     */
+    std::vector<boost::signals2::connection> tria_listeners;
 
     /**
      * Callback function that should be called before every refinement
