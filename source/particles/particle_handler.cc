@@ -1850,6 +1850,9 @@ namespace Particles
                        this->property_pool->n_properties_per_slot());
     }));
 
+    this->tria_listeners.push_back(
+      this->triangulation->signals.clear.connect([&]() { this->clear(); }));
+
     // for distributed triangulations, connect to distributed signals
     if (dynamic_cast<const parallel::DistributedTriangulationBase<dim, spacedim>
                        *>(&(*triangulation)) != nullptr)
@@ -1889,8 +1892,7 @@ namespace Particles
 
   template <int dim, int spacedim>
   void
-  ParticleHandler<dim,
-                  spacedim>::prepare_for_coarsening_and_refinement()
+  ParticleHandler<dim, spacedim>::prepare_for_coarsening_and_refinement()
   {
     register_store_callback();
   }
@@ -1954,8 +1956,7 @@ namespace Particles
 
   template <int dim, int spacedim>
   void
-  ParticleHandler<dim, spacedim>::
-    transfer_after_coarsening_and_refinement()
+  ParticleHandler<dim, spacedim>::transfer_after_coarsening_and_refinement()
   {
     register_load_callback_function(false);
   }
@@ -1996,6 +1997,9 @@ namespace Particles
     (void)non_const_triangulation;
 
     Assert(non_const_triangulation != nullptr, dealii::ExcNotImplemented());
+
+    // First prepare container for insertion
+    clear_particles();
 
 #ifdef DEAL_II_WITH_P4EST
     // If we are resuming from a checkpoint, we first have to register the
