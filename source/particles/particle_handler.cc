@@ -1882,10 +1882,21 @@ namespace Particles
   {
     Assert(triangulation != nullptr, ExcInternalError());
 
-    // Resize the container if it is possible without
-    // transferring particles
-    if (local_number_of_particles == 0)
-      particles.resize(triangulation->n_active_cells());
+    const bool distributed_triangulation =
+      dynamic_cast<
+        const parallel::DistributedTriangulationBase<dim, spacedim> *>(
+        &(*triangulation)) != nullptr;
+    (void)distributed_triangulation;
+
+    Assert(
+      distributed_triangulation || local_number_of_particles == 0,
+      ExcMessage(
+        "Mesh refinement in a non-distributed triangulation is not supported by the ParticleHandler class. Either insert particles after mesh creation, or use a distributed triangulation."))
+
+      // Resize the container if it is possible without
+      // transferring particles
+      if (local_number_of_particles == 0)
+        particles.resize(triangulation->n_active_cells());
   }
 
 
@@ -1922,13 +1933,13 @@ namespace Particles
   ParticleHandler<dim, spacedim>::register_store_callback()
   {
     parallel::distributed::Triangulation<dim, spacedim>
-      *non_const_triangulation =
+      *distributed_triangulation =
         const_cast<parallel::distributed::Triangulation<dim, spacedim> *>(
           dynamic_cast<const parallel::distributed::Triangulation<dim, spacedim>
                          *>(&(*triangulation)));
-    (void)non_const_triangulation;
+    (void)distributed_triangulation;
 
-    Assert(non_const_triangulation != nullptr, dealii::ExcNotImplemented());
+    Assert(distributed_triangulation != nullptr, dealii::ExcNotImplemented());
 
 #ifdef DEAL_II_WITH_P4EST
     // Only save and load particles if there are any, we might get here for
@@ -1946,7 +1957,7 @@ namespace Particles
             return this->store_particles(cell_iterator, cell_status);
           };
 
-        handle = non_const_triangulation->register_data_attach(
+        handle = distributed_triangulation->register_data_attach(
           callback_function, /*returns_variable_size_data=*/true);
       }
 #endif
@@ -1958,7 +1969,7 @@ namespace Particles
   void
   ParticleHandler<dim, spacedim>::transfer_after_coarsening_and_refinement()
   {
-    register_load_callback_function(false);
+    register_load_callback(false);
   }
 
 
@@ -1967,7 +1978,7 @@ namespace Particles
   void
   ParticleHandler<dim, spacedim>::deserialize()
   {
-    register_load_callback_function(true);
+    register_load_callback(true);
   }
 
 
@@ -1990,13 +2001,13 @@ namespace Particles
     const bool serialization)
   {
     parallel::distributed::Triangulation<dim, spacedim>
-      *non_const_triangulation =
+      *distributed_triangulation =
         const_cast<parallel::distributed::Triangulation<dim, spacedim> *>(
           dynamic_cast<const parallel::distributed::Triangulation<dim, spacedim>
                          *>(&(*triangulation)));
-    (void)non_const_triangulation;
+    (void)distributed_triangulation;
 
-    Assert(non_const_triangulation != nullptr, dealii::ExcNotImplemented());
+    Assert(distributed_triangulation != nullptr, dealii::ExcNotImplemented());
 
     // First prepare container for insertion
     clear_particles();
@@ -2016,7 +2027,7 @@ namespace Particles
             return this->store_particles(cell_iterator, cell_status);
           };
 
-        handle = non_const_triangulation->register_data_attach(
+        handle = distributed_triangulation->register_data_attach(
           callback_function, /*returns_variable_size_data=*/true);
       }
 
@@ -2033,7 +2044,7 @@ namespace Particles
             this->load_particles(cell_iterator, cell_status, range_iterator);
           };
 
-        non_const_triangulation->notify_ready_to_unpack(handle,
+        distributed_triangulation->notify_ready_to_unpack(handle,
                                                         callback_function);
 
         // Reset handle and update global number of particles. The number

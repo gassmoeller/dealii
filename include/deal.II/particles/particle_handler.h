@@ -735,17 +735,19 @@ namespace Particles
      * particles to their new cells. The implementation depends on the
      * triangulation type that is connected to the particle handler and differs
      * between shared and distributed triangulations. This function should be
-     * used like the corresponding function with the same name in the
-     * SolutionTransfer() class. See there for an example on how to use it.
+     * used like the SolutionTransfer::interpolate() function after mesh
+     * refinement has finished. Note that this function requires a working
+     * mapping, i.e. if you use a mapping class that requires setup after
+     * a mesh refinement (e.g. MappingQCache(), or MappingEulerian()), the
+     * mapping has to be ready before you can call this function.
      *
      * @note It is important to note, that if you do not call this function
-     * before a refinement/coarsening operation in a serial or shared
-     * triangulation, or a refinement/coarsening/repartitioning operation
-     * in a distributed triangulation and the particle handler contained
-     * particles before, the particle handler will not be usable after the mesh
-     * has been changed or repartioned. This is similar to not using a
-     * SolutionTransfer class to interpolate a solution vector and accessing the
-     * unchanged vector with the new dof indices.
+     * after a refinement/coarsening operation (and a repartitioning operation
+     * in a distributed triangulation) and the particle handler contained
+     * particles before, the particle handler will not be usable any more. Not
+     * calling this function after refinement would be similar to trying to
+     * access a solution vector after mesh refinement without first using a
+     * SolutionTransfer class transfer the vector to the new mesh.
      */
     void
     transfer_after_coarsening_and_refinement();
@@ -968,8 +970,8 @@ namespace Particles
       load_callback;
 
     /**
-     * This variable is set by the register_store_callback_function()
-     * function and used by the register_load_callback_function() function
+     * This variable is set by the register_store_callback()
+     * function and used by the register_load_callback() function
      * to check where the particle data was registered in the corresponding
      * triangulation object.
      */

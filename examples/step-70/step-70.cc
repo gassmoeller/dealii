@@ -1096,10 +1096,10 @@ namespace Step70
     // when it has just happened, and will take care of transferring all
     // information to the newly refined grid with minimal computational cost.
     fluid_tria.signals.pre_distributed_refinement.connect(
-      [&]() { tracer_particle_handler.register_store_callback_function(); });
+      [&]() { tracer_particle_handler.prepare_for_coarsening_and_refinement(); });
 
     fluid_tria.signals.post_distributed_refinement.connect([&]() {
-      tracer_particle_handler.register_load_callback_function(false);
+      tracer_particle_handler.transfer_after_coarsening_and_refinement();
     });
   }
 
