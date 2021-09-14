@@ -365,6 +365,126 @@ namespace internal
 
 
 /**
+ * Base class for FEPointEvaluation to allow runtime determination of the
+ * number of components.
+ */
+template <int dim,
+          int spacedim    = dim,
+          typename Number = double>
+class FEPointEvaluationBase
+{
+public:
+  using value_type = typename internal::FEPointEvaluation::
+    EvaluatorTypeTraits<dim, n_components, Number>::value_type;
+  using gradient_type = typename internal::FEPointEvaluation::
+    EvaluatorTypeTraits<dim, n_components, Number>::gradient_type;
+    
+      /**
+       * virtual Destructor.
+       */
+      virtual ~FEPointEvaluationBase() = default;
+
+  virtual void
+  reinit(const typename Triangulation<dim, spacedim>::cell_iterator &cell,
+         const ArrayView<const Point<dim>> &unit_points) = 0;
+
+  virtual void
+  evaluate(const ArrayView<const Number> &         solution_values,
+           const EvaluationFlags::EvaluationFlags &evaluation_flags) = 0;
+
+  virtual void
+  integrate(const ArrayView<Number> &               solution_values,
+            const EvaluationFlags::EvaluationFlags &integration_flags) = 0;
+
+  /**
+   * Return the value at quadrature point number @p point_index after a call to
+   * FEPointEvaluation::evaluate() with EvaluationFlags::value set, or
+   * the value that has been stored there with a call to
+   * FEPointEvaluation::submit_value(). If the object is vector-valued, a
+   * vector-valued return argument is given.
+   */
+  virtual const value_type &
+  get_value(const unsigned int point_index) const = 0;
+
+  /**
+   * Write a value to the field containing the values on points
+   * with component point_index. Access to the same field as through
+   * get_value(). If applied before the function FEPointEvaluation::integrate()
+   * with EvaluationFlags::values set is called, this specifies the value
+   * which is tested by all basis function on the current cell and
+   * integrated over.
+   */
+  virtual void
+  submit_value(const value_type &value, const unsigned int point_index) = 0;
+
+  /**
+   * Return the gradient in real coordinates at the point with index
+   * `point_index` after a call to FEPointEvaluation::evaluate() with
+   * EvaluationFlags::gradient set, or the gradient that has been stored there
+   * with a call to FEPointEvaluation::submit_gradient(). The gradient in real
+   * coordinates is obtained by taking the unit gradient (also accessible via
+   * get_unit_gradient()) and applying the inverse Jacobian of the mapping. If
+   * the object is vector-valued, a vector-valued return argument is given.
+   */
+  virtual const gradient_type &
+  get_gradient(const unsigned int point_index) const = 0;
+
+  /**
+   * Return the gradient in unit coordinates at the point with index
+   * `point_index` after a call to FEPointEvaluation::evaluate() with
+   * EvaluationFlags::gradient set, or the gradient that has been stored there
+   * with a call to FEPointEvaluation::submit_gradient(). If the object is
+   * vector-valued, a vector-valued return argument is given. Note that when
+   * vectorization is enabled, values from several points are grouped
+   * together.
+   */
+  virtual const gradient_type &
+  get_unit_gradient(const unsigned int point_index) const = 0;
+
+  /**
+   * Write a contribution that is tested by the gradient to the field
+   * containing the values on points with the given `point_index`. Access to
+   * the same field as through get_gradient(). If applied before the function
+   * FEPointEvaluation::integrate(EvaluationFlags::gradients) is called, this
+   * specifies what is tested by all basis function gradients on the current
+   * cell and integrated over.
+   */
+  virtual void
+  submit_gradient(const gradient_type &, const unsigned int point_index) = 0;
+
+  /**
+   * Return the Jacobian of the transformation on the current cell with the
+   * given point index. Prerequisite: This class needs to be constructed with
+   * UpdateFlags containing `update_jacobian`.
+   */
+  virtual DerivativeForm<1, dim, spacedim>
+  jacobian(const unsigned int point_index) const = 0;
+
+  /**
+   * Return the inverse of the Jacobian of the transformation on the current
+   * cell with the given point index. Prerequisite: This class needs to be
+   * constructed with UpdateFlags containing `update_inverse_jacobian` or
+   * `update_gradients`.
+   */
+  virtual DerivativeForm<1, spacedim, dim>
+  inverse_jacobian(const unsigned int point_index) const = 0;
+
+  /**
+   * Return the position in real coordinates of the given point index among
+   * the points passed to reinit().
+   */
+  virtual Point<spacedim>
+  real_point(const unsigned int point_index) const = 0;
+
+  /**
+   * Return the position in unit/reference coordinates of the given point
+   * index, i.e., the respective point passed to the reinit() function.
+   */
+  virtual Point<dim>
+  unit_point(const unsigned int point_index) const = 0;
+};
+
+/**
  * This class provides an interface to the evaluation of interpolated solution
  * values and gradients on cells on arbitrary reference point positions. These
  * points can change from cell to cell, both with respect to their quantity as
@@ -396,7 +516,7 @@ template <int n_components,
           int dim,
           int spacedim    = dim,
           typename Number = double>
-class FEPointEvaluation
+class FEPointEvaluation: public FEPointEvaluationBase<dim, spacedim, Number>
 {
 public:
   using value_type = typename internal::FEPointEvaluation::
@@ -440,7 +560,7 @@ public:
    */
   void
   reinit(const typename Triangulation<dim, spacedim>::cell_iterator &cell,
-         const ArrayView<const Point<dim>> &unit_points);
+         const ArrayView<const Point<dim>> &unit_points) override;
 
   /**
    * This function interpolates the finite element solution, represented by
@@ -455,7 +575,7 @@ public:
    */
   void
   evaluate(const ArrayView<const Number> &         solution_values,
-           const EvaluationFlags::EvaluationFlags &evaluation_flags);
+           const EvaluationFlags::EvaluationFlags &evaluation_flags) override;
 
   /**
    * This function multiplies the quantities passed in by previous
@@ -482,7 +602,7 @@ public:
    */
   void
   integrate(const ArrayView<Number> &               solution_values,
-            const EvaluationFlags::EvaluationFlags &integration_flags);
+            const EvaluationFlags::EvaluationFlags &integration_flags) override;
 
   /**
    * Return the value at quadrature point number @p point_index after a call to
@@ -492,7 +612,7 @@ public:
    * vector-valued return argument is given.
    */
   const value_type &
-  get_value(const unsigned int point_index) const;
+  get_value(const unsigned int point_index) const override;
 
   /**
    * Write a value to the field containing the values on points
@@ -503,7 +623,7 @@ public:
    * integrated over.
    */
   void
-  submit_value(const value_type &value, const unsigned int point_index);
+  submit_value(const value_type &value, const unsigned int point_index) override;
 
   /**
    * Return the gradient in real coordinates at the point with index
@@ -515,7 +635,7 @@ public:
    * the object is vector-valued, a vector-valued return argument is given.
    */
   const gradient_type &
-  get_gradient(const unsigned int point_index) const;
+  get_gradient(const unsigned int point_index) const override;
 
   /**
    * Return the gradient in unit coordinates at the point with index
@@ -527,7 +647,7 @@ public:
    * together.
    */
   const gradient_type &
-  get_unit_gradient(const unsigned int point_index) const;
+  get_unit_gradient(const unsigned int point_index) const override;
 
   /**
    * Write a contribution that is tested by the gradient to the field
@@ -538,7 +658,7 @@ public:
    * cell and integrated over.
    */
   void
-  submit_gradient(const gradient_type &, const unsigned int point_index);
+  submit_gradient(const gradient_type &, const unsigned int point_index) override;
 
   /**
    * Return the Jacobian of the transformation on the current cell with the
@@ -546,7 +666,7 @@ public:
    * UpdateFlags containing `update_jacobian`.
    */
   DerivativeForm<1, dim, spacedim>
-  jacobian(const unsigned int point_index) const;
+  jacobian(const unsigned int point_index) const override;
 
   /**
    * Return the inverse of the Jacobian of the transformation on the current
@@ -555,21 +675,21 @@ public:
    * `update_gradients`.
    */
   DerivativeForm<1, spacedim, dim>
-  inverse_jacobian(const unsigned int point_index) const;
+  inverse_jacobian(const unsigned int point_index) const override;
 
   /**
    * Return the position in real coordinates of the given point index among
    * the points passed to reinit().
    */
   Point<spacedim>
-  real_point(const unsigned int point_index) const;
+  real_point(const unsigned int point_index) const override;
 
   /**
    * Return the position in unit/reference coordinates of the given point
    * index, i.e., the respective point passed to the reinit() function.
    */
   Point<dim>
-  unit_point(const unsigned int point_index) const;
+  unit_point(const unsigned int point_index) const override;
 
 private:
   /**
