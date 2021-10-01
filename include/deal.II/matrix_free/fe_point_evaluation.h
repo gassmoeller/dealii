@@ -597,17 +597,20 @@ private:
 
   /**
    * Description of the 1D polynomial basis for tensor product elements used
-   * for the fast path of this class using tensor product evaluators.
+   * for the fast path of this class using tensor product evaluators. Each
+   * entry of the outer vector represents a base element, while each entry of
+   * the inner vector represents a polynomial degree of this base element.
    */
-  std::vector<Polynomials::Polynomial<double>> poly;
+  std::vector<std::vector<Polynomials::Polynomial<double>>> poly;
 
   /**
-   * Store whether the polynomials are linear with nodes at 0 and 1.
+   * Store whether the polynomials are linear with nodes at 0 and 1 for
+   * each of the base elements.
    */
-  bool polynomials_are_hat_functions;
+  std::vector<bool> polynomials_are_hat_functions;
 
   /**
-   * Renumbering between the unknowns of unknowns implied by the FiniteElement
+   * Renumbering between the unknowns implied by the FiniteElement
    * class and a lexicographic numbering used for the tensorized code path.
    */
   std::vector<unsigned int> renumber;
@@ -648,10 +651,11 @@ private:
   std::vector<gradient_type> gradients;
 
   /**
-   * Number of unknowns per component, i.e., number of unique basis functions,
-   * for the chosen FiniteElement (or base element).
+   * Number of unknowns for each component, i.e., number of unique basis
+   * functions, for the chosen FiniteElement (or base element) of this
+   * component.
    */
-  unsigned int dofs_per_component;
+  std::vector<unsigned int> dofs_per_component;
 
   /**
    * For complicated FiniteElement objects this variable informs us about
@@ -740,37 +744,56 @@ FEPointEvaluation<n_components, dim, spacedim, Number>::FEPointEvaluation(
       };
     }
 
-  bool         same_base_element   = true;
   unsigned int base_element_number = 0;
-  unsigned int component           = 0;
-  for (; base_element_number < fe.n_base_elements(); ++base_element_number)
-    if (component + fe.element_multiplicity(base_element_number) >
-        first_selected_component)
-      {
-        if (first_selected_component + n_components >
-            component + fe.element_multiplicity(base_element_number))
-          same_base_element = false;
-        break;
-      }
-    else
-      component += fe.element_multiplicity(base_element_number);
-  if (fill_mapping_data_for_generic_points &&
-      internal::FEPointEvaluation::is_fast_path_supported(
-        fe, base_element_number) &&
-      same_base_element)
+  bool         fast_path_supported = fill_mapping_data_for_generic_points;
+
+  if (fast_path_supported == true)
     {
-      internal::MatrixFreeFunctions::ShapeInfo<double> shape_info;
+      for (; base_element_number < fe.n_base_elements(); ++base_element_number)
+        {
+          // Condition to select partial base elements:
+          //  if ((component + fe.element_multiplicity(base_element_number) >
+          //      first_selected_component) && (component +
+          //      fe.element_multiplicity(base_element_number) <
+          //      first_selected_component + n_components))
+          {
+            if (internal::FEPointEvaluation::is_fast_path_supported(
+                  fe, base_element_number) == false)
+              {
+                fast_path_supported = false;
+                break;
+              }
+            //    }
+            //  else
+            //    component += fe.element_multiplicity(base_element_number);
+          }
+        }
+    }
 
-      shape_info.reinit(QMidpoint<1>(), fe, base_element_number);
-      renumber           = shape_info.lexicographic_numbering;
-      dofs_per_component = shape_info.dofs_per_component_on_cell;
-      poly               = internal::FEPointEvaluation::get_polynomial_space(
-        fe.base_element(base_element_number));
+  if (fast_path_supported == true)
+    {
+      for (base_element_number = 0; base_element_number < fe.n_base_elements();
+           ++base_element_number)
+        {
+          internal::MatrixFreeFunctions::ShapeInfo<double> shape_info;
 
-      polynomials_are_hat_functions =
-        (poly.size() == 2 && poly[0].value(0.) == 1. &&
-         poly[0].value(1.) == 0. && poly[1].value(0.) == 0. &&
-         poly[1].value(1.) == 1.);
+          shape_info.reinit(QMidpoint<1>(), fe, base_element_number);
+          renumber.insert(renumber.end(),
+                          shape_info.lexicographic_numbering.begin(),
+                          shape_info.lexicographic_numbering.end());
+          dofs_per_component.insert(dofs_per_component.end(),
+                                    shape_info.n_components,
+                                    shape_info.dofs_per_component_on_cell);
+          poly.push_back(internal::FEPointEvaluation::get_polynomial_space(
+            fe.base_element(base_element_number)));
+
+          const bool poly_are_hat_functions =
+            (poly.back().size() == 2 && poly.back()[0].value(0.) == 1. &&
+             poly.back()[0].value(1.) == 0. && poly.back()[1].value(0.) == 0. &&
+             poly.back()[1].value(1.) == 1.);
+
+          polynomials_are_hat_functions.push_back(poly_are_hat_functions);
+        }
     }
   else
     {
@@ -862,18 +885,24 @@ FEPointEvaluation<n_components, dim, spacedim, Number>::evaluate(
       !poly.empty())
     {
       // fast path with tensor product evaluation
-      if (solution_renumbered.size() != dofs_per_component)
-        solution_renumbered.resize(dofs_per_component);
-      for (unsigned int comp = 0; comp < n_components; ++comp)
-        for (unsigned int i = 0; i < dofs_per_component; ++i)
-          internal::FEPointEvaluation::
-            EvaluatorTypeTraits<dim, n_components, Number>::read_value(
-              solution_values[renumber[comp * dofs_per_component + i]],
-              comp,
-              solution_renumbered[i]);
 
-      // unit gradients are currently only implemented with the fast tensor
-      // path
+      unsigned int dof_index = 0;
+      for (unsigned int comp = 0; comp < n_components; ++comp)
+        {
+          if (solution_renumbered.size() != dofs_per_component)
+            solution_renumbered.resize(dofs_per_component[comp]);
+
+          for (unsigned int i = 0; i < dofs_per_component[comp];
+               ++i, ++dof_index)
+            internal::FEPointEvaluation::
+              EvaluatorTypeTraits<dim, n_components, Number>::read_value(
+                solution_values[renumber[dof_index]],
+                comp,
+                solution_renumbered[i]);
+        }
+
+      // unit gradients are currently only implemented with the fast
+      // tensor path
       unit_gradients.resize(unit_points.size(),
                             numbers::signaling_nan<gradient_type>());
 
