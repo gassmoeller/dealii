@@ -1143,33 +1143,16 @@ namespace Utilities
         ExcMessage(
           "Error: MPI::CollectiveMutex needs to be locked before unlock()"));
 
-      // avoid communicating with other processes if there is an uncaught
-      // exception
+      // Only communicate with other processes if there is no uncaught
+      // exception to avoid deadlocks. If there is an uncaught exception, do
+      // nothing and let the exception propagate up the stack.
 #ifdef DEAL_II_WITH_MPI
 #  if __cpp_lib_uncaught_exceptions >= 201411
       // std::uncaught_exception() is deprecated in c++17
-      if (std::uncaught_exceptions() > 0 && comm != MPI_COMM_SELF)
+      if (std::uncaught_exceptions() == 0 && comm != MPI_COMM_SELF)
 #  else
-      if (std::uncaught_exception() == true && comm != MPI_COMM_SELF)
+      if (std::uncaught_exception() == false && comm != MPI_COMM_SELF)
 #  endif
-        {
-          const unsigned int myid = Utilities::MPI::this_mpi_process(comm);
-          (void)myid;
-
-#  if DEBUG
-          std::cerr
-            << "---------------------------------------------------------\n"
-            << "CollectiveMutex objects unlock \n"
-            << "by communicating over MPI.\n"
-            << "Since an exception is currently uncaught on process " << myid
-            << "\n"
-            << ", this synchronization (and subsequent output) will be skipped\n"
-            << "to avoid a possible deadlock.\n"
-            << "---------------------------------------------------------"
-            << std::endl;
-#  endif
-        }
-      else // no exceptions pending
         {
           // TODO: For now, we implement this mutex with a blocking barrier
           // in the lock and unlock. It needs to be tested, if we can move

@@ -38,18 +38,11 @@ signal_handler(int signal)
     {
       std::cerr << "Unexpected signal " << signal << " received\n";
     }
-#if DEAL_II_USE_CXX11
+
   // Kill the program without performing any other cleanup, which is likely to
   // lead to a deadlock
   std::cerr << "Calling _Exit (good)\n";
   std::_Exit(EXIT_FAILURE);
-#else
-  // Kill the program, or at least try to. The problem when we get here is
-  // that calling std::exit invokes at_exit() functions that may still hang
-  // the MPI system
-  std::cerr << "Calling exit (bad)\n";
-  std::exit(1);
-#endif
 }
 
 void
@@ -87,25 +80,23 @@ unguarded(MPI_Comm comm)
 void
 test(MPI_Comm comm)
 {
-  try
+  static Utilities::MPI::CollectiveMutex      mutex;
+  Utilities::MPI::CollectiveMutex::ScopedLock lock(mutex, comm);
+
+  const auto my_rank = Utilities::MPI::this_mpi_process(comm);
+
+  if (my_rank != 0)
     {
-      static Utilities::MPI::CollectiveMutex      mutex;
-      Utilities::MPI::CollectiveMutex::ScopedLock lock(mutex, comm);
-
-      const auto my_rank = Utilities::MPI::this_mpi_process(comm);
-
-      if (my_rank == 0)
-        {
-          Assert(false, ExcInternalError());
-        }
-
       unsigned int value = 123;
-      int          dest  = 0;
+      int          dest  = 1;
       MPI_Send(&value, 1, MPI_UNSIGNED, dest, 1, comm);
     }
-  catch (::dealii::StandardExceptions::ExcInternalError &exc)
+
+  std::this_thread::sleep_for(std::chrono::seconds(5));
+
+  if (my_rank == 0)
     {
-      throw exc;
+      Assert(false, ExcInternalError());
     }
 }
 
@@ -122,5 +113,12 @@ main(int argc, char **argv)
 
   MPILogInitAll();
 
-  test(MPI_COMM_WORLD);
+  try
+    {
+      test(MPI_COMM_WORLD);
+    }
+  catch (::dealii::StandardExceptions::ExcInternalError &exc)
+    {
+      deallog << "Everything good. Exception caught." << std::endl;
+    }
 }
