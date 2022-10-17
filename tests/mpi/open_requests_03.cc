@@ -18,8 +18,39 @@
 
 #include <deal.II/base/mpi.h>
 
+#include <csignal>
+
 #include "../tests.h"
 
+// hook into SIGABRT/SIGFPE and kill off the program
+void
+signal_handler(int signal)
+{
+  if (signal == SIGABRT)
+    {
+      std::cerr << "SIGABRT received\n";
+    }
+  else if (signal == SIGFPE)
+    {
+      std::cerr << "SIGFPE received\n";
+    }
+  else
+    {
+      std::cerr << "Unexpected signal " << signal << " received\n";
+    }
+#if DEAL_II_USE_CXX11
+  // Kill the program without performing any other cleanup, which is likely to
+  // lead to a deadlock
+  std::cerr << "Calling _Exit (good)\n";
+  std::_Exit(EXIT_FAILURE);
+#else
+  // Kill the program, or at least try to. The problem when we get here is
+  // that calling std::exit invokes at_exit() functions that may still hang
+  // the MPI system
+  std::cerr << "Calling exit (bad)\n";
+  std::exit(1);
+#endif
+}
 
 void
 unguarded(MPI_Comm comm)
@@ -56,47 +87,40 @@ unguarded(MPI_Comm comm)
 void
 test(MPI_Comm comm)
 {
-  // check that we can use a static mutex:
-  static Utilities::MPI::CollectiveMutex      mutex;
-  Utilities::MPI::CollectiveMutex::ScopedLock lock(mutex, comm);
-
-  const auto my_rank = Utilities::MPI::this_mpi_process(comm);
-  const auto n_ranks = Utilities::MPI::n_mpi_processes(comm);
-
-  if (my_rank == 0)
+  try
     {
-      std::throw();
+      static Utilities::MPI::CollectiveMutex      mutex;
+      Utilities::MPI::CollectiveMutex::ScopedLock lock(mutex, comm);
+
+      const auto my_rank = Utilities::MPI::this_mpi_process(comm);
+
+      if (my_rank == 0)
+        {
+          Assert(false, ExcInternalError());
+        }
+
+      unsigned int value = 123;
+      int          dest  = 0;
+      MPI_Send(&value, 1, MPI_UNSIGNED, dest, 1, comm);
     }
-
-    MPI_Barrier(comm);
+  catch (::dealii::StandardExceptions::ExcInternalError &exc)
+    {
+      throw exc;
+    }
 }
 
-
-
-void
-test2(MPI_Comm comm)
-{
-  // Check that we can use a mutex that is not static:
-  Utilities::MPI::CollectiveMutex mutex;
-  mutex.lock(comm);
-  MPI_Barrier(comm);
-  mutex.unlock(comm);
-  mutex.lock(comm);
-  mutex.unlock(comm);
-}
 
 
 int
 main(int argc, char **argv)
 {
+  std::signal(SIGABRT, signal_handler);
+  std::signal(SIGFPE, signal_handler);
+
   Utilities::MPI::MPI_InitFinalize mpi_initialization(
     argc, argv, testing_max_num_threads());
 
-  mpi_initlog();
+  MPILogInitAll();
 
   test(MPI_COMM_WORLD);
-  test(MPI_COMM_WORLD);
-  test(MPI_COMM_WORLD);
-
-  test2(MPI_COMM_WORLD);
 }
