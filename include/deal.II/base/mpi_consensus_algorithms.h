@@ -1601,40 +1601,68 @@ namespace Utilities
         static CollectiveMutex      mutex;
         CollectiveMutex::ScopedLock lock(mutex, comm);
 
-        // 1) Send data to identified targets and start receiving
-        //    the answers from these very same processes.
-        start_communication(targets, create_request, comm);
+        try
+          {
+            // 1) Send data to identified targets and start receiving
+            //    the answers from these very same processes.
+            start_communication(targets, create_request, comm);
 
-        // 2) Until all posted receive operations are known to have completed,
-        //    answer requests and keep checking whether all requests of
-        //    this process have been answered.
-        //
-        //    The requests that we catch in the answer_requests() function
-        //    originate elsewhere, that is, they are not in response
-        //    to our own messages
-        //
-        //    Note also that we may not catch all incoming requests in
-        //    the following two lines: our own requests may have been
-        //    satisfied before we've dealt with all incoming requests.
-        //    That's ok: We will get around to dealing with all remaining
-        //    message later. We just want to move on to the next step
-        //    as early as possible.
-        while (all_locally_originated_receives_are_completed(process_answer,
-                                                             comm) == false)
-          maybe_answer_one_request(answer_request, comm);
+            // 2) Until all posted receive operations are known to have
+            // completed,
+            //    answer requests and keep checking whether all requests of
+            //    this process have been answered.
+            //
+            //    The requests that we catch in the answer_requests() function
+            //    originate elsewhere, that is, they are not in response
+            //    to our own messages
+            //
+            //    Note also that we may not catch all incoming requests in
+            //    the following two lines: our own requests may have been
+            //    satisfied before we've dealt with all incoming requests.
+            //    That's ok: We will get around to dealing with all remaining
+            //    message later. We just want to move on to the next step
+            //    as early as possible.
+            while (all_locally_originated_receives_are_completed(process_answer,
+                                                                 comm) == false)
+              maybe_answer_one_request(answer_request, comm);
 
-        // 3) Signal to all other processes that all requests of this process
-        //    have been answered
-        signal_finish(comm);
+            // 3) Signal to all other processes that all requests of this
+            // process
+            //    have been answered
+            signal_finish(comm);
 
-        // 4) Nevertheless, this process has to keep on answering (potential)
-        //    incoming requests until all processes have received the
-        //    answer to all requests
-        while (all_remotely_originated_receives_are_completed() == false)
-          maybe_answer_one_request(answer_request, comm);
+            // 4) Nevertheless, this process has to keep on answering
+            // (potential)
+            //    incoming requests until all processes have received the
+            //    answer to all requests
+            while (all_remotely_originated_receives_are_completed() == false)
+              maybe_answer_one_request(answer_request, comm);
 
-        // 5) process the answer to all requests
-        clean_up_and_end_communication(comm);
+            // 5) process the answer to all requests
+            clean_up_and_end_communication(comm);
+          }
+        // An exception within this algorithm likely causes a deadlock.
+        // Abort with a reasonable error message instead.
+        catch (ExceptionBase &exc)
+          {
+            // report name of the deal.II exception:
+            std::cerr << std::endl
+                      << std::endl
+                      << "----------------------------------------------------"
+                      << std::endl;
+            std::cerr << "Exception '" << exc.get_exc_name() << "'"
+                      << " on rank "
+                      << Utilities::MPI::this_mpi_process(MPI_COMM_WORLD)
+                      << " on processing: " << std::endl
+                      << exc.what() << std::endl
+                      << "Aborting!" << std::endl
+                      << "----------------------------------------------------"
+                      << std::endl;
+
+            // Then bring down the whole MPI world
+            MPI_Abort(comm, 255);
+          }
+
 
         return std::vector<unsigned int>(requesting_processes.begin(),
                                          requesting_processes.end());
