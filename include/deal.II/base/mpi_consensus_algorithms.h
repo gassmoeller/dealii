@@ -1612,16 +1612,16 @@ namespace Utilities
             //    answer requests and keep checking whether all requests of
             //    this process have been answered.
             //
-            //    The requests that we catch in the answer_requests() function
-            //    originate elsewhere, that is, they are not in response
-            //    to our own messages
+            //    The requests that we catch in the answer_requests()
+            //    function originate elsewhere, that is, they are not in
+            //    response to our own messages
             //
             //    Note also that we may not catch all incoming requests in
             //    the following two lines: our own requests may have been
             //    satisfied before we've dealt with all incoming requests.
-            //    That's ok: We will get around to dealing with all remaining
-            //    message later. We just want to move on to the next step
-            //    as early as possible.
+            //    That's ok: We will get around to dealing with all
+            //    remaining message later. We just want to move on to the
+            //    next step as early as possible.
             while (all_locally_originated_receives_are_completed(process_answer,
                                                                  comm) == false)
               maybe_answer_one_request(answer_request, comm);
@@ -1662,7 +1662,38 @@ namespace Utilities
             // Then bring down the whole MPI world
             MPI_Abort(comm, 255);
           }
+        catch (std::exception &exc)
+          {
+            std::cerr << std::endl
+                      << std::endl
+                      << "----------------------------------------------------"
+                      << std::endl;
+            std::cerr << "Exception"
+                      << " on rank "
+                      << Utilities::MPI::this_mpi_process(MPI_COMM_WORLD)
+                      << " on processing: " << std::endl
+                      << exc.what() << std::endl
+                      << "Aborting!" << std::endl
+                      << "----------------------------------------------------"
+                      << std::endl;
 
+            // Then bring down the whole MPI world
+            MPI_Abort(comm, 255);
+          }
+        catch (...)
+          {
+            std::cerr << std::endl
+                      << std::endl
+                      << "----------------------------------------------------"
+                      << std::endl;
+            std::cerr << "Unknown exception!" << std::endl
+                      << "Aborting!" << std::endl
+                      << "----------------------------------------------------"
+                      << std::endl;
+
+            // Then bring down the whole MPI world
+            MPI_Abort(comm, 255);
+          }
 
         return std::vector<unsigned int>(requesting_processes.begin(),
                                          requesting_processes.end());
