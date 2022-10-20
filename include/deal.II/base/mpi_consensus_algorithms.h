@@ -1475,6 +1475,82 @@ namespace Utilities
                                      my_destinations.end()) ==
                   my_destinations.end());
         }
+
+
+
+        void
+        handle_exception(std::exception_ptr exception, const MPI_Comm &comm)
+        {
+#  ifdef DEAL_II_WITH_MPI
+          // an exception within a ConsensusAlgorithm likely causes an
+          // MPI deadlock. Abort with a reasonable error message instead.
+          try
+            {
+              std::rethrow_exception(exception);
+            }
+          catch (ExceptionBase &exc)
+            {
+              // report name of the deal.II exception:
+              std::cerr
+                << std::endl
+                << std::endl
+                << "----------------------------------------------------"
+                << std::endl;
+              std::cerr
+                << "Exception '" << exc.get_exc_name() << "'"
+                << " on rank " << Utilities::MPI::this_mpi_process(comm)
+                << " on processing: " << std::endl
+                << exc.what() << std::endl
+                << "Aborting!" << std::endl
+                << "----------------------------------------------------"
+                << std::endl;
+
+              // Then bring down the whole MPI world
+              MPI_Abort(comm, 255);
+            }
+          catch (std::exception &exc)
+            {
+              std::cerr
+                << std::endl
+                << std::endl
+                << "----------------------------------------------------"
+                << std::endl;
+              std::cerr
+                << "Exception within ConsensusAlgorithm"
+                << " on rank " << Utilities::MPI::this_mpi_process(comm)
+                << " on processing: " << std::endl
+                << exc.what() << std::endl
+                << "Aborting!" << std::endl
+                << "----------------------------------------------------"
+                << std::endl;
+
+              // Then bring down the whole MPI world
+              MPI_Abort(comm, 255);
+            }
+          catch (...)
+            {
+              std::cerr
+                << std::endl
+                << std::endl
+                << "----------------------------------------------------"
+                << std::endl;
+              std::cerr
+                << "Unknown exception within ConsensusAlgorithm!" << std::endl
+                << "Aborting!" << std::endl
+                << "----------------------------------------------------"
+                << std::endl;
+
+              // Then bring down the whole MPI world
+              MPI_Abort(comm, 255);
+            }
+#  else
+          (void)comm;
+
+          // No need to be concerned about deadlocks without MPI.
+          // Defer to exception handling further up the callstack.
+          std::rethrow_exception(exception);
+#  endif
+        }
       } // namespace
 
 
@@ -1641,58 +1717,9 @@ namespace Utilities
             // 5) process the answer to all requests
             clean_up_and_end_communication(comm);
           }
-        // An exception within this algorithm likely causes a deadlock.
-        // Abort with a reasonable error message instead.
-        catch (ExceptionBase &exc)
-          {
-            // report name of the deal.II exception:
-            std::cerr << std::endl
-                      << std::endl
-                      << "----------------------------------------------------"
-                      << std::endl;
-            std::cerr << "Exception '" << exc.get_exc_name() << "'"
-                      << " on rank "
-                      << Utilities::MPI::this_mpi_process(MPI_COMM_WORLD)
-                      << " on processing: " << std::endl
-                      << exc.what() << std::endl
-                      << "Aborting!" << std::endl
-                      << "----------------------------------------------------"
-                      << std::endl;
-
-            // Then bring down the whole MPI world
-            MPI_Abort(comm, 255);
-          }
-        catch (std::exception &exc)
-          {
-            std::cerr << std::endl
-                      << std::endl
-                      << "----------------------------------------------------"
-                      << std::endl;
-            std::cerr << "Exception"
-                      << " on rank "
-                      << Utilities::MPI::this_mpi_process(MPI_COMM_WORLD)
-                      << " on processing: " << std::endl
-                      << exc.what() << std::endl
-                      << "Aborting!" << std::endl
-                      << "----------------------------------------------------"
-                      << std::endl;
-
-            // Then bring down the whole MPI world
-            MPI_Abort(comm, 255);
-          }
         catch (...)
           {
-            std::cerr << std::endl
-                      << std::endl
-                      << "----------------------------------------------------"
-                      << std::endl;
-            std::cerr << "Unknown exception!" << std::endl
-                      << "Aborting!" << std::endl
-                      << "----------------------------------------------------"
-                      << std::endl;
-
-            // Then bring down the whole MPI world
-            MPI_Abort(comm, 255);
+            handle_exception(std::current_exception(), comm);
           }
 
         return std::vector<unsigned int>(requesting_processes.begin(),
@@ -2034,21 +2061,28 @@ namespace Utilities
         static CollectiveMutex      mutex;
         CollectiveMutex::ScopedLock lock(mutex, comm);
 
-        // 1) Send requests and start receiving the answers.
-        //    In particular, determine how many requests we should expect
-        //    on the current process.
-        const unsigned int n_requests =
-          start_communication(targets, create_request, comm);
+        try
+          {
+            // 1) Send requests and start receiving the answers.
+            //    In particular, determine how many requests we should expect
+            //    on the current process.
+            const unsigned int n_requests =
+              start_communication(targets, create_request, comm);
 
-        // 2) Answer requests:
-        for (unsigned int request = 0; request < n_requests; ++request)
-          answer_one_request(request, answer_request, comm);
+            // 2) Answer requests:
+            for (unsigned int request = 0; request < n_requests; ++request)
+              answer_one_request(request, answer_request, comm);
 
-        // 3) Process answers:
-        process_incoming_answers(targets.size(), process_answer, comm);
+            // 3) Process answers:
+            process_incoming_answers(targets.size(), process_answer, comm);
 
-        // 4) Make sure all sends have successfully terminated:
-        clean_up_and_end_communication();
+            // 4) Make sure all sends have successfully terminated:
+            clean_up_and_end_communication();
+          }
+        catch (...)
+          {
+            handle_exception(std::current_exception(), comm);
+          }
 
         return std::vector<unsigned int>(requesting_processes.begin(),
                                          requesting_processes.end());
