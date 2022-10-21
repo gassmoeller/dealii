@@ -1478,7 +1478,10 @@ namespace Utilities
 
 
 
-        void
+        /**
+         * Handle exceptions inside the ConsensusAlgorithm::run() functions.
+         */
+        inline void
         handle_exception(std::exception_ptr exception, const MPI_Comm &comm)
         {
 #  ifdef DEAL_II_WITH_MPI
