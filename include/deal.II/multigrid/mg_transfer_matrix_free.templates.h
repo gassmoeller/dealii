@@ -3446,53 +3446,50 @@ MGTwoLevelTransfer<dim, LinearAlgebra::distributed::Vector<Number>>::
 
 namespace internal
 {
-  namespace
+  inline bool
+  is_partitioner_contained(
+    const std::shared_ptr<const Utilities::MPI::Partitioner> &partitioner,
+    const std::shared_ptr<const Utilities::MPI::Partitioner>
+      &external_partitioner)
   {
-    bool
-    is_partitioner_contained(
-      const std::shared_ptr<const Utilities::MPI::Partitioner> &partitioner,
-      const std::shared_ptr<const Utilities::MPI::Partitioner>
-        &external_partitioner)
-    {
-      // no external partitioner has been given
-      if (external_partitioner.get() == nullptr)
-        return false;
+    // no external partitioner has been given
+    if (external_partitioner.get() == nullptr)
+      return false;
 
-      // check if locally owned ranges are the same
-      if (external_partitioner->size() != partitioner->size())
-        return false;
+    // check if locally owned ranges are the same
+    if (external_partitioner->size() != partitioner->size())
+      return false;
 
-      if (external_partitioner->locally_owned_range() !=
-          partitioner->locally_owned_range())
-        return false;
+    if (external_partitioner->locally_owned_range() !=
+        partitioner->locally_owned_range())
+      return false;
 
-      const int ghosts_locally_contained =
-        ((external_partitioner->ghost_indices() &
-          partitioner->ghost_indices()) == partitioner->ghost_indices()) ?
-          1 :
-          0;
+    const int ghosts_locally_contained =
+      ((external_partitioner->ghost_indices() & partitioner->ghost_indices()) ==
+       partitioner->ghost_indices()) ?
+        1 :
+        0;
 
-      // check if ghost values are contained in external partititioner
-      return Utilities::MPI::min(ghosts_locally_contained,
-                                 partitioner->get_mpi_communicator()) == 1;
-    }
+    // check if ghost values are contained in external partititioner
+    return Utilities::MPI::min(ghosts_locally_contained,
+                               partitioner->get_mpi_communicator()) == 1;
+  }
 
-    std::shared_ptr<Utilities::MPI::Partitioner>
-    create_embedded_partitioner(
-      const std::shared_ptr<const Utilities::MPI::Partitioner> &partitioner,
-      const std::shared_ptr<const Utilities::MPI::Partitioner>
-        &larger_partitioner)
-    {
-      auto embedded_partitioner = std::make_shared<Utilities::MPI::Partitioner>(
-        larger_partitioner->locally_owned_range(),
-        larger_partitioner->get_mpi_communicator());
+  inline std::shared_ptr<Utilities::MPI::Partitioner>
+  create_embedded_partitioner(
+    const std::shared_ptr<const Utilities::MPI::Partitioner> &partitioner,
+    const std::shared_ptr<const Utilities::MPI::Partitioner>
+      &larger_partitioner)
+  {
+    auto embedded_partitioner = std::make_shared<Utilities::MPI::Partitioner>(
+      larger_partitioner->locally_owned_range(),
+      larger_partitioner->get_mpi_communicator());
 
-      embedded_partitioner->set_ghost_indices(
-        partitioner->ghost_indices(), larger_partitioner->ghost_indices());
+    embedded_partitioner->set_ghost_indices(
+      partitioner->ghost_indices(), larger_partitioner->ghost_indices());
 
-      return embedded_partitioner;
-    }
-  } // namespace
+    return embedded_partitioner;
+  }
 } // namespace internal
 
 template <typename Number>
