@@ -1749,6 +1749,11 @@ MGTransferMatrixFree<dim, Number>::interpolate_to_mg(
 
           auto &dst_level = dst[l];
 
+          const bool has_ghost_elements = dst_level.has_ghost_elements();
+
+          if (has_ghost_elements)
+            dst_level.zero_out_ghost_values();
+
           const auto copy_unknowns = [&](const auto &indices) {
             for (unsigned int i = 0; i < indices.n_cols(); ++i)
               dst_level.local_element(indices(1, i)) =
@@ -1760,6 +1765,9 @@ MGTransferMatrixFree<dim, Number>::interpolate_to_mg(
           copy_unknowns(this->solution_copy_indices_level_mine[l]);
 
           dst_level.compress(VectorOperation::insert);
+
+          if (has_ghost_elements)
+            dst_level.update_ghost_values();
 
           if (l != min_level)
             this->transfer[l]->interpolate(dst[l - 1], dst[l]);
