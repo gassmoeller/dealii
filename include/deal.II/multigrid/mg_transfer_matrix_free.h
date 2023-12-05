@@ -1167,6 +1167,15 @@ public:
   void
   clear();
 
+  /**
+   * Indicate if global coarsening or local smoothing is performed. Note
+   * that in the case local smoothing copy_to_mg() and copy_from_mg()
+   * are more complex and edge constraints need to be considered during
+   * the multigrid algorithm.
+   */
+  bool
+  performs_global_coarsening() const;
+
   /** @} */
 
 private:

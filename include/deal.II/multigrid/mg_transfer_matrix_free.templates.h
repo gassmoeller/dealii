@@ -4320,6 +4320,14 @@ MGTransferMatrixFree<dim, Number>::clear()
 }
 
 
+template <int dim, typename Number>
+inline bool
+MGTransferMatrixFree<dim, Number>::performs_global_coarsening() const
+{
+  return this->perform_plain_copy || this->perform_renumbered_plain_copy;
+}
+
+
 
 template <int dim, typename Number>
 MGTransferBlockMatrixFree<dim, Number>::MGTransferBlockMatrixFree(
