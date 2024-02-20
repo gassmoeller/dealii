@@ -713,9 +713,19 @@ namespace Particles
      * triggered whenever a particle is deleted, and the connected functions
      * are called passing an iterator to the particle in question, and its last
      * known cell association.
+     *
+     * @param sort_particle_memory If true, the memory slots of the particles
+     * are sorted to be contiguous in the order of particle iteration.
+     * This is useful for performance reasons, as it allows for better cache
+     * utilization. If false, the memory slots are not sorted, which can be
+     * useful to avoid the performance cost of sorting the particle memory if a
+     * guaranteed sort is happening later. For example in multi-step integration
+     * schemes it can be useful to only perform the memory sort after the final
+     * integration step.
      */
     void
-    sort_particles_into_subdomains_and_cells();
+    sort_particles_into_subdomains_and_cells(
+      const bool sort_particle_memory = true);
 
     /**
      * Exchange all particles that live in cells that are ghost cells to

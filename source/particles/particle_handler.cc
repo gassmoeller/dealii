@@ -1207,7 +1207,8 @@ namespace Particles
 
   template <int dim, int spacedim>
   void
-  ParticleHandler<dim, spacedim>::sort_particles_into_subdomains_and_cells()
+  ParticleHandler<dim, spacedim>::sort_particles_into_subdomains_and_cells(
+    const bool sort_particle_memory)
   {
     Assert(triangulation != nullptr, ExcInternalError());
     Assert(cells_to_particle_cache.size() == triangulation->n_active_cells(),
@@ -1495,20 +1496,23 @@ namespace Particles
     // remove_particles also calls update_cached_numbers()
     remove_particles(particles_out_of_cell);
 
-    // now make sure particle data is sorted in order of iteration
-    std::vector<typename PropertyPool<dim, spacedim>::Handle> unsorted_handles;
-    unsorted_handles.reserve(property_pool->n_registered_slots());
+    if (sort_particle_memory)
+      {
+        // now make sure particle data is sorted in order of iteration
+        std::vector<typename PropertyPool<dim, spacedim>::Handle>
+          unsorted_handles;
+        unsorted_handles.reserve(property_pool->n_registered_slots());
 
-    typename PropertyPool<dim, spacedim>::Handle sorted_handle = 0;
-    for (auto &particles_in_cell : particles)
-      for (auto &particle : particles_in_cell.particles)
-        {
-          unsorted_handles.push_back(particle);
-          particle = sorted_handle++;
-        }
+        typename PropertyPool<dim, spacedim>::Handle sorted_handle = 0;
+        for (auto &particles_in_cell : particles)
+          for (auto &particle : particles_in_cell.particles)
+            {
+              unsorted_handles.push_back(particle);
+              particle = sorted_handle++;
+            }
 
-    property_pool->sort_memory_slots(unsorted_handles);
-
+        property_pool->sort_memory_slots(unsorted_handles);
+      }
   } // namespace Particles
 
 
