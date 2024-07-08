@@ -12,11 +12,11 @@ permissions:
   packages: write
 
 env:
-  REGISTRY_IMAGE: dealii/dealii
+  REGISTRY_IMAGE: gassmoeller/dealii
 
 jobs:
   build-master-docker-ubuntu:
-    if: (github.event_name == 'schedule' && github.repository == 'dealii/dealii') || github.event_name != 'schedule'
+    if: (github.event_name == 'schedule' && github.repository == 'gassmoeller/dealii') || github.event_name != 'schedule'
 
     name: build master docker ${{ matrix.ubuntu_version }} ${{ matrix.platform }}
     runs-on: ubuntu-latest
@@ -91,7 +91,7 @@ jobs:
           retention-days: 1
   
   merge:
-    if: (github.event_name == 'schedule' && github.repository == 'dealii/dealii') || github.event_name != 'schedule'
+    if: (github.event_name == 'schedule' && github.repository == 'gassmoeller/dealii') || github.event_name != 'schedule'
 
     runs-on: ubuntu-latest
     needs:
