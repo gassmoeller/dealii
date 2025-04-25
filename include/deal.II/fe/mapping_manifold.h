@@ -314,7 +314,7 @@ public:
     mutable ObserverPointer<const Manifold<dim, spacedim>> manifold;
   };
 
-private:
+protected:
   // documentation can be found in Mapping::requires_update_flags()
   virtual UpdateFlags
   requires_update_flags(const UpdateFlags update_flags) const override;
