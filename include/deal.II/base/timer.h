@@ -308,17 +308,26 @@ private:
   /**
    * Collection of wall time measurements.
    */
-  ClockMeasurements<wall_clock_type> wall_times;
+  mutable ClockMeasurements<wall_clock_type> wall_times;
 
   /**
    * Collection of CPU time measurements.
    */
-  ClockMeasurements<cpu_clock_type> cpu_times;
+  mutable ClockMeasurements<cpu_clock_type> cpu_times;
 
   /**
    * Whether or not the timer is presently running.
    */
   bool running;
+
+  /**
+   * Synchronize results across MPI ranks before
+   * producing output.
+   */
+  void
+  synchronize() const;
+
+  mutable bool is_synchronized;
 
   /**
    * The communicator over which various time values are synchronized and
@@ -338,7 +347,7 @@ private:
    * maximum, and average over all processors known to the MPI communicator of
    * the last lap time.
    */
-  Utilities::MPI::MinMaxAvg last_lap_wall_time_data;
+  mutable Utilities::MPI::MinMaxAvg last_lap_wall_time_data;
 
   /**
    * A structure for parallel wall time measurement that includes the minimum
@@ -346,7 +355,7 @@ private:
    * average time defined as the sum of all individual times divided by the
    * number of MPI processes in the MPI_Comm for the total run time.
    */
-  Utilities::MPI::MinMaxAvg accumulated_wall_time_data;
+  mutable Utilities::MPI::MinMaxAvg accumulated_wall_time_data;
 };
 
 

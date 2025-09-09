@@ -29,7 +29,7 @@
 void
 test(TimerOutput &t)
 {
-  TimerOutput::MPISafeScope timer_section(t, "Test section");
+  TimerOutput::Scope timer_section(t, "Test section");
 
   if (Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
     {

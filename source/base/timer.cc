@@ -163,6 +163,7 @@ Timer::Timer()
 
 Timer::Timer(const MPI_Comm mpi_communicator, const bool sync_lap_times_)
   : running(false)
+  , is_synchronized(true)
   , mpi_communicator(mpi_communicator)
   , sync_lap_times(sync_lap_times_)
 {
@@ -194,13 +195,88 @@ Timer::stop()
 {
   if (running)
     {
-      running = false;
+      running         = false;
+      is_synchronized = false;
 
       wall_times.last_lap_time =
         wall_clock_type::now() - wall_times.current_lap_start_time;
       cpu_times.last_lap_time =
         cpu_clock_type::now() - cpu_times.current_lap_start_time;
+    }
+  return internal::TimerImplementation::to_seconds(cpu_times.accumulated_time);
+}
 
+
+
+double
+Timer::cpu_time() const
+{
+  if (running)
+    {
+      const double running_time = internal::TimerImplementation::to_seconds(
+        cpu_clock_type::now() - cpu_times.current_lap_start_time +
+        cpu_times.accumulated_time);
+      return Utilities::MPI::sum(running_time, mpi_communicator);
+    }
+  else
+    {
+      if (is_synchronized == false)
+        synchronize();
+
+      return Utilities::MPI::sum(internal::TimerImplementation::to_seconds(
+                                   cpu_times.accumulated_time),
+                                 mpi_communicator);
+    }
+}
+
+
+
+double
+Timer::last_cpu_time() const
+{
+  if (is_synchronized == false)
+    synchronize();
+
+  return internal::TimerImplementation::to_seconds(cpu_times.last_lap_time);
+}
+
+
+
+double
+Timer::wall_time() const
+{
+  if (is_synchronized == false)
+    synchronize();
+
+  wall_clock_type::duration current_elapsed_wall_time;
+  if (running)
+    current_elapsed_wall_time = wall_clock_type::now() -
+                                wall_times.current_lap_start_time +
+                                wall_times.accumulated_time;
+  else
+    current_elapsed_wall_time = wall_times.accumulated_time;
+
+  return internal::TimerImplementation::to_seconds(current_elapsed_wall_time);
+}
+
+
+
+double
+Timer::last_wall_time() const
+{
+  if (is_synchronized == false)
+    synchronize();
+
+  return internal::TimerImplementation::to_seconds(wall_times.last_lap_time);
+}
+
+
+
+void
+Timer::synchronize() const
+{
+  if (is_synchronized == false)
+    {
       last_lap_wall_time_data =
         Utilities::MPI::min_max_avg(internal::TimerImplementation::to_seconds(
                                       wall_times.last_lap_time),
@@ -224,60 +300,9 @@ Timer::stop()
         Utilities::MPI::min_max_avg(internal::TimerImplementation::to_seconds(
                                       wall_times.accumulated_time),
                                     mpi_communicator);
+
+      is_synchronized = true;
     }
-  return internal::TimerImplementation::to_seconds(cpu_times.accumulated_time);
-}
-
-
-
-double
-Timer::cpu_time() const
-{
-  if (running)
-    {
-      const double running_time = internal::TimerImplementation::to_seconds(
-        cpu_clock_type::now() - cpu_times.current_lap_start_time +
-        cpu_times.accumulated_time);
-      return Utilities::MPI::sum(running_time, mpi_communicator);
-    }
-  else
-    {
-      return Utilities::MPI::sum(internal::TimerImplementation::to_seconds(
-                                   cpu_times.accumulated_time),
-                                 mpi_communicator);
-    }
-}
-
-
-
-double
-Timer::last_cpu_time() const
-{
-  return internal::TimerImplementation::to_seconds(cpu_times.last_lap_time);
-}
-
-
-
-double
-Timer::wall_time() const
-{
-  wall_clock_type::duration current_elapsed_wall_time;
-  if (running)
-    current_elapsed_wall_time = wall_clock_type::now() -
-                                wall_times.current_lap_start_time +
-                                wall_times.accumulated_time;
-  else
-    current_elapsed_wall_time = wall_times.accumulated_time;
-
-  return internal::TimerImplementation::to_seconds(current_elapsed_wall_time);
-}
-
-
-
-double
-Timer::last_wall_time() const
-{
-  return internal::TimerImplementation::to_seconds(wall_times.last_lap_time);
 }
 
 
@@ -287,7 +312,8 @@ Timer::reset()
 {
   wall_times.reset();
   cpu_times.reset();
-  running = false;
+  running         = false;
+  is_synchronized = true;
   internal::TimerImplementation::clear_timing_data(last_lap_wall_time_data);
   internal::TimerImplementation::clear_timing_data(accumulated_wall_time_data);
 }
@@ -458,6 +484,7 @@ TimerOutput::leave_subsection(const std::string &section_name)
     (section_name.empty() ? active_sections.back() : section_name);
 
   sections[actual_section_name].timer.stop();
+  // TODO this triggers MPI communication
   sections[actual_section_name].total_wall_time +=
     sections[actual_section_name].timer.last_wall_time();
 
