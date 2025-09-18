@@ -512,6 +512,8 @@ namespace Utilities
       static MPI_Datatype type = []() {
         MPI_Datatype type;
 
+        std::cout << "Creating MPI type" << std::endl;
+
         int lengths[] = {3, 2, 1};
 
         MPI_Aint displacements[] = {0,
@@ -544,6 +546,8 @@ namespace Utilities
        */
       static MPI_Op op = []() {
         MPI_Op op;
+
+        std::cout << "Creating MPI op" << std::endl;
 
         int ierr =
           MPI_Op_create(reinterpret_cast<MPI_User_function *>(&max_reduce),
