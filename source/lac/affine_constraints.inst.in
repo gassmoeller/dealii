@@ -249,6 +249,35 @@ for (S : REAL_AND_COMPLEX_SCALARS)
 
 for (S : TRILINOS_SCALARS)
   {
+    // Pure vector variants:
+    template void AffineConstraints<S>::distribute_local_to_global<LinearAlgebra::TpetraWrappers::Vector<S, MemorySpace::Host>>(
+      const Vector<S> &,
+      const std::vector<types::global_dof_index> &,
+      LinearAlgebra::TpetraWrappers::Vector<S, MemorySpace::Host> &,
+      const FullMatrix<S> &) const;
+
+    template void AffineConstraints<S>::distribute_local_to_global<LinearAlgebra::TpetraWrappers::Vector<S, MemorySpace::Host>>(
+      const Vector<S> &,
+      const std::vector<types::global_dof_index> &,
+      const std::vector<types::global_dof_index> &,
+      LinearAlgebra::TpetraWrappers::Vector<S, MemorySpace::Host> &,
+      const FullMatrix<S> &,
+      bool) const;
+
+    template void AffineConstraints<S>::distribute_local_to_global<LinearAlgebra::TpetraWrappers::Vector<S, MemorySpace::Default>>(
+      const Vector<S> &,
+      const std::vector<types::global_dof_index> &,
+      LinearAlgebra::TpetraWrappers::Vector<S, MemorySpace::Default> &,
+      const FullMatrix<S> &) const;
+
+    template void AffineConstraints<S>::distribute_local_to_global<LinearAlgebra::TpetraWrappers::Vector<S, MemorySpace::Default>>(
+      const Vector<S> &,
+      const std::vector<types::global_dof_index> &,
+      const std::vector<types::global_dof_index> &,
+      LinearAlgebra::TpetraWrappers::Vector<S, MemorySpace::Default> &,
+      const FullMatrix<S> &,
+      bool) const;
+
     template void AffineConstraints<S>::distribute_local_to_global<
       LinearAlgebra::TpetraWrappers::SparseMatrix<S, MemorySpace::Host>,
       LinearAlgebra::TpetraWrappers::Vector<S, MemorySpace::Host>>(
