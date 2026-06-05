@@ -1800,6 +1800,7 @@ namespace Step32
               temperature_partitioner,
               dsp,
               MPI_COMM_WORLD);
+    sp.compress();
 
     temperature_matrix.reinit(sp);
     temperature_mass_matrix.reinit(sp);
