@@ -1670,10 +1670,18 @@ namespace Step32
   {
     stokes_matrix.clear();
 
+#ifdef DEAL_II_TRILINOS_WITH_EPETRA
     TrilinosWrappers::BlockSparsityPattern sp(stokes_partitioning,
                                               stokes_partitioning,
                                               stokes_relevant_partitioning,
                                               MPI_COMM_WORLD);
+#else
+    // The Trilinos distributed sparsity pattern for block matrices is not
+    // yet implemented for Tpetra classes. Fall back to a dynamic sparsity
+    // pattern for now.
+    BlockDynamicSparsityPattern sp(stokes_relevant_partitioning);
+#endif
+
 
     Table<2, DoFTools::Coupling> coupling(dim + 1, dim + 1);
     for (unsigned int c = 0; c < dim + 1; ++c)
@@ -1690,7 +1698,18 @@ namespace Step32
                                     false,
                                     Utilities::MPI::this_mpi_process(
                                       MPI_COMM_WORLD));
+
+#ifdef DEAL_II_TRILINOS_WITH_EPETRA
     sp.compress();
+#else
+    const auto                  locally_relevant_dofs =
+      DoFTools::extract_locally_relevant_dofs(stokes_dof_handler);
+    SparsityTools::distribute_sparsity_pattern(
+      sp,
+      stokes_dof_handler.locally_owned_dofs(),
+      MPI_COMM_WORLD,
+      locally_relevant_dofs);
+#endif
 
     stokes_matrix.reinit(sp);
   }
@@ -1707,10 +1726,17 @@ namespace Step32
 
     stokes_preconditioner_matrix.clear();
 
+#ifdef DEAL_II_TRILINOS_WITH_EPETRA
     TrilinosWrappers::BlockSparsityPattern sp(stokes_partitioning,
                                               stokes_partitioning,
                                               stokes_relevant_partitioning,
                                               MPI_COMM_WORLD);
+#else
+    // The Trilinos distributed sparsity pattern for block matrices is not
+    // yet implemented for Tpetra classes. Fall back to a dynamic sparsity
+    // pattern for now.
+    BlockDynamicSparsityPattern sp(stokes_relevant_partitioning);
+#endif
 
     Table<2, DoFTools::Coupling> coupling(dim + 1, dim + 1);
     for (unsigned int c = 0; c < dim + 1; ++c)
@@ -1727,7 +1753,19 @@ namespace Step32
                                     false,
                                     Utilities::MPI::this_mpi_process(
                                       MPI_COMM_WORLD));
+
+#ifdef DEAL_II_TRILINOS_WITH_EPETRA
     sp.compress();
+#else
+    const auto                  locally_relevant_dofs =
+      DoFTools::extract_locally_relevant_dofs(stokes_dof_handler);
+
+    SparsityTools::distribute_sparsity_pattern(
+      sp,
+      stokes_dof_handler.locally_owned_dofs(),
+      MPI_COMM_WORLD,
+      locally_relevant_dofs);
+#endif
 
     stokes_preconditioner_matrix.reinit(sp);
   }
