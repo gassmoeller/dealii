@@ -1,0 +1,225 @@
+  <i>
+This program was contributed by Quang Hoang and Timo Heister, Clemson University.
+
+We acknowledge support from the NVIDIA Academic Grant Program award "Sustainable NVIDIA GPU acceleration for open source FEM simulations in deal.II". Many thanks to Daniel Arndt, Rene Gassmöller, and Bruno Turcksin for help with GPU support in deal.II and this tutorial.
+</i>
+
+<a name="step_104-Intro"></a>
+  <h1>Introduction</h1>
+
+  This tutorial implements a matrix free algorithm
+  that works on GPUs using
+  Kokkos to solve the Stokes problem
+
+  @f{align}{
+    -\Delta \mathbf{u} + \nabla p &= \mathbf{f} \quad \text{in } \Omega, \\
+    \nabla \cdot \mathbf{u} &= 0 \quad \text{in } \Omega, \\
+    \mathbf{u} &= \mathbf{0} \quad \text{on } \partial\Omega,
+  @f}
+
+  where we want to solve for velocity $\mathbf{u}$ and pressure $p$.
+  The Stokes equations model the behavior of slow-moving, viscous flow,
+  which is often relevant in applications of biofluid dynamics, microfluidics,
+  and flow of geomaterials like ice or rock.
+
+  Finite element simulations on GPUs offer several benefits compared to traditional CPU calculations,
+  for example a higher compute performance and memory bandwidth
+  for a specified power budget as discussed in step-64.
+  Just as in that tutorial, which solves the Helmholtz equation instead of the Stokes equations,
+  we again make use of the Kokkos library to implement a portable algorithm that works well on
+  both GPUs and CPUs.
+
+  Unlike step-64, this tutorial solves for two solution variables, namely velocity $\mathbf{u}$ and
+  pressure $p$, which means we will need two DoFHandlers and Portable::FEEvaluation
+  objects, and the solution will be stored in a block vector with two blocks.
+
+  The algorithm that is implemented in this tutorial is matrix-free, meaning we use no assembled matrices.
+  Matrix-free methods have been instrumental in speeding up finite element
+  computations, as memory bandwidth is often a massive bottleneck when using
+  matrix-based methods. Matrix-free methods exploit the fact that simple
+  computations such as addition and multiplication are relatively quick
+  compared to memory bandwidth, so instead of storing data in a matrix and
+  using them to apply the action of the linear operator,
+  matrix vector products are computed on the fly. This approach
+  is discussed in detail in step-37.
+
+  While this program runs (slowly) without a GPU, using a workstation with one or more GPUs or a GPU cluster
+  is strongly recommended. Unfortunately, installing deal.II with GPU support is non-trivial. Please see the
+  [deal.II GPU wiki page](https://github.com/dealii/dealii/wiki/GPU-support-in-deal.II) for installation
+  instructions.
+
+  <h3>Weak form</h3>
+
+  Multiplying the first equation by $\mathbf{v} \in H_0^1 = \{t \in H^1(\Omega)^d :
+  t = 0 \text{ on } \partial\Omega\}$ and integrating by parts we get
+
+  @f{eqnarray*}{
+    (\nabla \mathbf{u}, \nabla \mathbf{v})_{\Omega} - (p, \nabla \cdot \mathbf{v})_{\Omega}
+    = (\mathbf{f}, \mathbf{v})_{\Omega}.
+  @f}
+
+  Multiplying the second equation by $q \in L^2(\Omega)$ we get
+
+  @f{eqnarray*}{
+    (q, \nabla \cdot \mathbf{u})_{\Omega} = 0.
+  @f}
+
+  In order to perform numerical computations, we discretize the weak form and
+  choose finite-dimensional finite element spaces to work with. We want to
+  choose a pair of discrete velocity and pressure spaces that
+  guarantees the existence of a unique computed solution. In this tutorial, we
+  use $Q_{\text{degree}+1}^d$ for velocity and $Q_{\text{degree}}$
+  for pressure, where degree $\geq 1$ and $d$ is the number of spatial
+  dimensions. These pairs are known as Taylor-Hood elements, which satisfy the
+  LBB condition and therefore guarantee existence and uniqueness of a
+  numerical solution. Our code implements the $Q_2^d \times Q_1$ pair in
+  particular. Of course, the Taylor-Hood pair can be changed by modifying
+  <code>degree_p</code> in the code, which also changes the velocity degree
+  which is set to <code>degree_p + 1</code>. This is also discussed in
+  step-22, though that tutorial differs slightly in that a deformation tensor
+  is used in place of $\nabla \mathbf{u}$.
+
+  <h3>Linear system and preconditioning</h3>
+
+  The discretized linear system is of the form
+
+  @f{eqnarray*}{
+    Mx :=
+    \begin{bmatrix} A & B^T \\ B & 0 \end{bmatrix}
+    \begin{pmatrix} \mathbf{u} \\ p \end{pmatrix}
+    =
+    \begin{pmatrix} f \\ 0 \end{pmatrix}.
+  @f}
+
+  The eigenvalues of $M$ are not clustered favorably. Consequently, an iterative
+  solver would not converge in a reasonable number of iterations. To address this
+  issue, we use a block triangular right preconditioner of the form
+
+  @f{align}{
+    P^{-1}
+    &= \begin{bmatrix} \widetilde{A} & B^T \\ 0 & -\widetilde{S}
+       \end{bmatrix}^{-1} \\
+    &= \begin{bmatrix} \widetilde{A}^{-1} & \widetilde{A}^{-1} B^T
+      \widetilde{S}^{-1} \\ 0 & -\widetilde{S}^{-1} \end{bmatrix},
+  @f}
+
+  where $\widetilde{A} \approx A$ and $\widetilde{S} \approx S =
+  BA^{-1}B^T$, which is known as the Schur complement. Note that some texts
+  define the Schur complement to be $S = -BA^{-1}B^T$, but in this
+  tutorial as well as step-32 we define $S$ to be a positive operator.
+
+  Notice that
+
+  @f{eqnarray*}{
+    \begin{bmatrix} A & B^T \\ B & 0 \end{bmatrix}
+    \begin{bmatrix} \widetilde{A}^{-1} & \widetilde{A}^{-1} B^T \widetilde{S}^{-1} \\
+    0 & -\widetilde{S}^{-1} \end{bmatrix}
+    =
+    \begin{bmatrix} A\widetilde{A}^{-1} &
+    (A\widetilde{A}^{-1})B^T\widetilde{S}^{-1} - B^T\widetilde{S}^{-1} \\
+    B\widetilde{A}^{-1} & B\widetilde{A}^{-1}B^T\widetilde{S}^{-1}
+    \end{bmatrix}.
+  @f}
+
+  We see that if $\widetilde{A}^{-1} = A^{-1}$ and
+  $\widetilde{S}^{-1} = (BA^{-1}B^T)^{-1}$ this is equal to
+
+  @f{eqnarray*}{
+    \begin{bmatrix} I & 0 \\ BA^{-1} & I \end{bmatrix}.
+  @f}
+
+  In other words, with perfect approximations of the inverse of $A$ and
+  inverse of $BA^{-1}B^T$, the preconditioned system only has $1$ as
+  an eigenvalue and therefore GMRES should converge in at most two iterations.
+
+  Of course, it is more computationally efficient to choose
+  $\widetilde{A}^{-1}$ and $\widetilde{S}^{-1}$ to be rough
+  approximations of $A^{-1}$ and $(BA^{-1}B^T)^{-1}$. In
+  particular, we approximate $A$ with a single V-cycle application of a geometric multigrid (GMG)
+  preconditioner and $S$ with the
+  inverse pressure mass matrix $M_p$. This approximation of the Schur
+  complement is standard in earth modeling and is implemented in the ASPECT
+  geodynamics code. These approximations have been shown to be highly
+  effective for problems featuring viscosity contrasts up to 6
+  orders of magnitude.
+
+  Letting $y = Px$, we can use an iterative solver to find $y$
+  and deduce that $x = P^{-1}y$.
+
+  For the actual preconditioner implementation, we require matrix-free
+  operators for the Stokes system, the $A$ block, the Schur complement
+  $S = BA^{-1}B^T$, and $B^T$.
+
+
+  <h3>GPU Acceleration</h3>
+
+  Not all parts of this example run on the GPU. Partly, this is because
+  GPU support in deal.II is still early and some parts could and most certainly
+  will be ported to run on GPUs. Additionally, some steps in this program
+  do not lend themselves to GPU acceleration because they are hard to (or impossible)
+  to parallelize and because they require IO, complex logic, or dynamic memory allocation.
+
+  As in step-64, we use the template parameter
+  MemorySpace::Default and MemorySpace::Host to indicate where the solution data
+  of a particular vector is stored. MemorySpace::Host always indicates the host
+  memory (CPU or main memory), while MemorySpace::Default refers to the memory of
+  the default compute device (either CPUs or GPUs depending on how the Kokkos library
+  used by deal.II was configured). While LinearAlgebra::distributed::Vector has
+  a default value for the memory space, which is, confusingly, MemorySpace::Host,
+  we always specify the memory space explicitly in this example. Any function operating
+  on vectors stored on the compute device have to run on the GPU as a kernel and
+  has to be marked with the DEAL_II_HOST_DEVICE precompiler macro to let the compiler
+  know that this code has to be compiled for the programming model of the relevant
+  compute device. This implies that the code in these functions cannot make use of
+  functionality that is not available on this device. Before the CPU can operate on
+  a vector, the data has to be copied into system memory (by copying into a vector with
+  MemorySpace::Host).
+
+  In short, we currently perform setup and postprocessing on the CPU, while the
+  linear solve runs on the GPU. The example performs the following steps:
+
+  1. Setup
+    1.1. Generate and refine the mesh (MPI parallel, CPU)
+    1.2. Distribute DoFs, compute constraints (CPU)
+    1.3. Assemble right-hand side vector (CPU)
+    1.3. Create mesh hierarchy for multigrid (CPU)
+    1.4. Setup Portable::MatrixFree operator: evaluate inverse Jacobians, mapping, cell geometry (CPU)
+    1.5. Setup multigrid operators, smoothers, transfer (CPU)
+  2. Solve
+    2.1. GMRES algorithm (CPU logic, operations on GPU):
+         - Vector operations: inner products, ... (GPU)
+         - Matrix-Vector product: Portable::MatrixFree (GPU)
+         - GMG preconditioner: Smoother, transfer, coarse solve (GPU)
+  3. Postprocess
+    3.1. Move solution to host memory
+    3.2. Compute errors (currently CPU only)
+
+  Notice that roughly speaking the setup and postprocess happens on the CPU with the linear solve step happening on the GPU. With
+  complex problems, this will be the majority of the computational time.
+
+  @note The GMG transfer currently uses MGTwoLevelTransferCopyToHost, which, as the name implies, performs the operation
+  on the CPU as the GPU implementation has not been completed.
+
+  <h3>Test case</h3>
+
+  Our test problem features a unit hypercube with the manufactured solution
+
+  @f{align}{
+    u &= \pi \sin^2(\pi x) \sin(2\pi y), \\
+    v &= -\pi \sin(2\pi x) \sin^2(\pi y), \\
+    p &= \cos(\pi x) \cos(\pi y)
+  @f}
+
+  in two dimensions and
+
+   @f{align}{
+   u &= \pi  \sin^2(\pi x)(\sin^2(\pi z)\sin(2\pi y)-\sin^2(\pi y)\sin(2\pi
+   z)), \\
+   v &= \pi  \sin^2(\pi y)  (\sin^2(\pi x)  \sin(2\pi z) - \sin^2(\pi
+   z)\sin(2\pi x)), \\
+   w &= \pi \sin^2(\pi z)  (\sin^2(\pi y)  \sin(2\pi x) -
+   \sin^2(\pi x)\sin(2\pi y)), \\
+   p &= \cos(\pi x)\cos(\pi y)\cos(\pi z)
+   @f}
+
+  in three dimensions.
