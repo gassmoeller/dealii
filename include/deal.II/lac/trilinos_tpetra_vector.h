@@ -301,6 +301,18 @@ namespace LinearAlgebra
         const internal::VectorReference<Number, MemorySpace>;
 
       /**
+       * Declare exceptions used in this class.
+       */
+      DeclExceptionMsg(
+        ExcVectorNotCompressed,
+        "You are attempting to perform an operation that is only "
+        "allowed if the vector is compressed, but the vector you "
+        "are operating on reports compress() has not been called "
+        "since the last relevant operation. Make sure to call "
+        "compress() after modifying non-local elements and before "
+        "performing global operations with the vector.");
+
+      /**
        * @name 1: Basic Object-handling
        */
       /** @{ */

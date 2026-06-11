@@ -713,6 +713,7 @@ namespace LinearAlgebra
     Vector<Number, MemorySpace>::operator*=(const Number factor)
     {
       Assert(!has_ghost_elements(), ExcGhostsPresent());
+      Assert(is_compressed(), ExcVectorNotCompressed());
       AssertIsFinite(factor);
 
       // Reset our cached vector view so that trilinos operations on device do
@@ -731,6 +732,7 @@ namespace LinearAlgebra
     Vector<Number, MemorySpace>::operator/=(const Number factor)
     {
       Assert(!has_ghost_elements(), ExcGhostsPresent());
+      Assert(is_compressed(), ExcVectorNotCompressed());
       AssertIsFinite(factor);
       Assert(factor != Number(0.), ExcZero());
 
@@ -753,6 +755,8 @@ namespace LinearAlgebra
       Assert(this->size() == V.size(),
              ExcDimensionMismatch(this->size(), V.size()));
       Assert(!has_ghost_elements(), ExcGhostsPresent());
+      Assert(is_compressed(), ExcVectorNotCompressed());
+      Assert(V.is_compressed(), ExcVectorNotCompressed());
 
       // Reset our cached vector view so that trilinos operations on device do
       // not detect an existing host view.
@@ -789,7 +793,13 @@ namespace LinearAlgebra
     Vector<Number, MemorySpace>::operator-=(
       const Vector<Number, MemorySpace> &V)
     {
+      Assert(this->size() == V.size(),
+             ExcDimensionMismatch(this->size(), V.size()));
+      Assert(vector->getMap()->isSameAs(*V.trilinos_vector().getMap()),
+             ExcDifferentParallelPartitioning());
       Assert(!has_ghost_elements(), ExcGhostsPresent());
+      Assert(is_compressed(), ExcVectorNotCompressed());
+      Assert(V.is_compressed(), ExcVectorNotCompressed());
 
       // Reset our cached vector view so that trilinos operations on device do
       // not detect an existing host view.
@@ -812,6 +822,8 @@ namespace LinearAlgebra
       Assert(vector->getMap()->isSameAs(*V.trilinos_vector().getMap()),
              ExcDifferentParallelPartitioning());
       Assert(!has_ghost_elements(), ExcGhostsPresent());
+      Assert(is_compressed(), ExcVectorNotCompressed());
+      Assert(V.is_compressed(), ExcVectorNotCompressed());
 
       // Reset our cached vector view so that trilinos operations on device do
       // not detect an existing host view.
@@ -871,6 +883,7 @@ namespace LinearAlgebra
       // if we have ghost values, do not allow
       // writing to this vector at all.
       Assert(!has_ghost_elements(), ExcGhostsPresent());
+      Assert(is_compressed(), ExcVectorNotCompressed());
 
       // Make sure we have a view available to access the vector entries.
       if (!vector_1d_view)
@@ -896,14 +909,17 @@ namespace LinearAlgebra
     Vector<Number, MemorySpace>::add(const Number                       a,
                                      const Vector<Number, MemorySpace> &V)
     {
-      AssertIsFinite(a);
-
+      Assert(this->size() == V.size(),
+             ExcDimensionMismatch(this->size(), V.size()));
       Assert(vector->getMap()->isSameAs(*(V.trilinos_vector().getMap())),
              ExcDifferentParallelPartitioning());
+      AssertIsFinite(a);
 
       // if we have ghost values, do not allow
       // writing to this vector at all.
       Assert(!has_ghost_elements(), ExcGhostsPresent());
+      Assert(is_compressed(), ExcVectorNotCompressed());
+      Assert(V.is_compressed(), ExcVectorNotCompressed());
 
       // Reset our cached vector view so that trilinos operations on device do
       // not detect an existing host view.
@@ -924,6 +940,11 @@ namespace LinearAlgebra
       AssertIsFinite(a);
       AssertIsFinite(b);
 
+      Assert(this->size() == V.size(),
+             ExcDimensionMismatch(this->size(), V.size()));
+      Assert(this->size() == W.size(),
+             ExcDimensionMismatch(this->size(), V.size()));
+
       Assert(vector->getMap()->isSameAs(*(V.trilinos_vector().getMap())),
              ExcDifferentParallelPartitioning());
       Assert(vector->getMap()->isSameAs(*(W.trilinos_vector().getMap())),
@@ -932,6 +953,9 @@ namespace LinearAlgebra
       // if we have ghost values, do not allow
       // writing to this vector at all.
       Assert(!has_ghost_elements(), ExcGhostsPresent());
+      Assert(is_compressed(), ExcVectorNotCompressed());
+      Assert(V.is_compressed(), ExcVectorNotCompressed());
+      Assert(W.is_compressed(), ExcVectorNotCompressed());
 
       // Reset our cached vector view so that trilinos operations on device do
       // not detect an existing host view.
@@ -958,12 +982,15 @@ namespace LinearAlgebra
                                       const Number                       a,
                                       const Vector<Number, MemorySpace> &V)
     {
-      // if we have ghost values, do not allow
-      // writing to this vector at all.
-      Assert(!has_ghost_elements(), ExcGhostsPresent());
       AssertDimension(size(), V.size());
       AssertIsFinite(s);
       AssertIsFinite(a);
+
+      // if we have ghost values, do not allow
+      // writing to this vector at all.
+      Assert(!has_ghost_elements(), ExcGhostsPresent());
+      Assert(is_compressed(), ExcVectorNotCompressed());
+      Assert(V.is_compressed(), ExcVectorNotCompressed());
 
       // Reset our cached vector view so that trilinos operations on device do
       // not detect an existing host view.
@@ -1001,6 +1028,7 @@ namespace LinearAlgebra
     Vector<Number, MemorySpace>::scale(
       const Vector<Number, MemorySpace> &scaling_factors)
     {
+      AssertDimension(size(), scaling_factors.size());
       Assert(vector->getMap()->isSameAs(
                *(scaling_factors.trilinos_vector().getMap())),
              ExcDifferentParallelPartitioning());
@@ -1008,6 +1036,8 @@ namespace LinearAlgebra
       // if we have ghost values, do not allow
       // writing to this vector at all.
       Assert(!has_ghost_elements(), ExcGhostsPresent());
+      Assert(is_compressed(), ExcVectorNotCompressed());
+      Assert(scaling_factors.is_compressed(), ExcVectorNotCompressed());
 
       // Reset our cached vector view so that trilinos operations on device do
       // not detect an existing host view.
@@ -1024,10 +1054,13 @@ namespace LinearAlgebra
                                      const Vector<Number, MemorySpace> &V)
     {
       AssertIsFinite(a);
+      AssertDimension(size(), V.size());
 
       // if we have ghost values, do not allow
       // writing to this vector at all.
       Assert(!has_ghost_elements(), ExcGhostsPresent());
+      Assert(is_compressed(), ExcVectorNotCompressed());
+      Assert(V.is_compressed(), ExcVectorNotCompressed());
 
       // Reset our cached vector view so that trilinos operations on device do
       // not detect an existing host view.
@@ -1109,6 +1142,7 @@ namespace LinearAlgebra
     Vector<Number, MemorySpace>::mean_value() const
     {
       Assert(!has_ghost_elements(), ExcGhostsPresent());
+      Assert(is_compressed(), ExcVectorNotCompressed());
 
       // Reset our cached vector view so that trilinos operations on device do
       // not detect an existing host view.
@@ -1126,6 +1160,7 @@ namespace LinearAlgebra
       Assert(numbers::NumberTraits<Number>::is_complex == false,
              ExcMessage(
                "Not implemented for complex number types at the moment."));
+      Assert(is_compressed(), ExcVectorNotCompressed());
 
       // Make sure we have a view available to access the vector entries.
       if (!vector_1d_view)
@@ -1157,6 +1192,7 @@ namespace LinearAlgebra
       Assert(numbers::NumberTraits<Number>::is_complex == false,
              ExcMessage(
                "Not implemented for complex number types at the moment."));
+      Assert(is_compressed(), ExcVectorNotCompressed());
 
       // Reset our cached vector view so that trilinos operations on device do
       // not detect an existing host view.
@@ -1172,6 +1208,7 @@ namespace LinearAlgebra
     Vector<Number, MemorySpace>::l1_norm() const
     {
       Assert(!has_ghost_elements(), ExcGhostsPresent());
+      Assert(is_compressed(), ExcVectorNotCompressed());
 
       // Reset our cached vector view so that trilinos operations on device do
       // not detect an existing host view.
@@ -1187,6 +1224,7 @@ namespace LinearAlgebra
     Vector<Number, MemorySpace>::l2_norm() const
     {
       Assert(!has_ghost_elements(), ExcGhostsPresent());
+      Assert(is_compressed(), ExcVectorNotCompressed());
 
       // Reset our cached vector view so that trilinos operations on device do
       // not detect an existing host view.
@@ -1202,6 +1240,7 @@ namespace LinearAlgebra
     Vector<Number, MemorySpace>::linfty_norm() const
     {
       Assert(!has_ghost_elements(), ExcGhostsPresent());
+      Assert(is_compressed(), ExcVectorNotCompressed());
 
       // Reset our cached vector view so that trilinos operations on device do
       // not detect an existing host view.
