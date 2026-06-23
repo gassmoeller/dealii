@@ -139,3 +139,31 @@ for (deal_II_dimension : DIMENSIONS)
       const MGLevelObject<PETScWrappers::MPI::Vector> &) const;
 #endif
   }
+
+#ifdef DEAL_II_TRILINOS_WITH_TPETRA
+for (deal_II_dimension : DIMENSIONS; S : REAL_SCALARS)
+  {
+    template void MGLevelGlobalTransfer<
+      LinearAlgebra::TpetraWrappers::Vector<S, MemorySpace::Host>>::
+      copy_to_mg(
+        const DoFHandler<deal_II_dimension> &,
+        MGLevelObject<
+          LinearAlgebra::TpetraWrappers::Vector<S, MemorySpace::Host>> &,
+        const LinearAlgebra::TpetraWrappers::Vector<S, MemorySpace::Host> &)
+        const;
+    template void MGLevelGlobalTransfer<
+      LinearAlgebra::TpetraWrappers::Vector<S, MemorySpace::Host>>::
+      copy_from_mg(
+        const DoFHandler<deal_II_dimension> &,
+        LinearAlgebra::TpetraWrappers::Vector<S, MemorySpace::Host> &,
+        const MGLevelObject<
+          LinearAlgebra::TpetraWrappers::Vector<S, MemorySpace::Host>> &) const;
+    template void MGLevelGlobalTransfer<
+      LinearAlgebra::TpetraWrappers::Vector<S, MemorySpace::Host>>::
+      copy_from_mg_add(
+        const DoFHandler<deal_II_dimension> &,
+        LinearAlgebra::TpetraWrappers::Vector<S, MemorySpace::Host> &,
+        const MGLevelObject<
+          LinearAlgebra::TpetraWrappers::Vector<S, MemorySpace::Host>> &) const;
+  }
+#endif

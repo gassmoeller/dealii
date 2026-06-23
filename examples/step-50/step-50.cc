@@ -127,7 +127,8 @@ namespace Step50
                   ExcMessage("ChangeVectorTypes::copy() not implemented for "
                              "PETSc vector types."));
 #else
-      rwv.reinit(in);
+      rwv.reinit(in.locally_owned_elements(), true);
+      rwv.import_elements(in, VectorOperation::insert);
 #endif
       out.import_elements(rwv, VectorOperation::insert);
     }
