@@ -213,6 +213,17 @@ namespace LinearAlgebra
 
     template <typename Number, typename MemorySpace>
     void
+    BlockVector<Number, MemorySpace>::swap(BlockVector<Number, MemorySpace> &v) noexcept
+    {
+      std::swap(this->components, v.components);
+
+      dealii::swap(this->block_indices, v.block_indices);
+    }
+
+
+
+    template <typename Number, typename MemorySpace>
+    void
     BlockVector<Number, MemorySpace>::print(std::ostream      &out,
                                             const unsigned int precision,
                                             const bool         scientific,

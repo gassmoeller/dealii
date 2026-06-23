@@ -215,6 +215,24 @@ namespace LinearAlgebra
       has_ghost_elements() const;
 
       /**
+       * Swap the contents of this vector and the other vector <tt>v</tt>. One
+       * could do this operation with a temporary variable and copying over
+       * the data elements, but this function is significantly more efficient
+       * since it only swaps the pointers to the data of the two vectors and
+       * therefore does not need to allocate temporary storage and move data
+       * around.
+       *
+       * Limitation: right now this function only works if both vectors have
+       * the same number of blocks. If needed, the numbers of blocks should be
+       * exchanged, too.
+       *
+       * This function is analogous to the swap() function of all C++
+       * standard containers.
+       */
+      void
+      swap(BlockVector &v) noexcept;
+
+      /**
        * Print to a stream.
        */
       void
