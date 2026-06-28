@@ -43,6 +43,8 @@ We acknowledge support from the NVIDIA Academic Grant Program award "Sustainable
   matrix vector products are computed on the fly. This approach
   is discussed in detail in step-37.
 
+  Shouldnt the paragraph above also contain references to the deal.II classes that make all this possible? Above you mention FEEvalution, but shouldnt you also mention PortableFEEvalution, and Portable::MatrixFree (or some relevant namespace or types)? step-64 already explains this, so maybe it is enough to add a reference to it, but at the moment it does not become clear from the text why all of this works on a GPU (it could describe a normal CPU based matrix-free algorithm). Also the MGTwoLevelTransferCopyToHost class should be mentioned and explained somewhere.
+
   While this program runs (slowly) without a GPU, using a workstation with one or more GPUs or a GPU cluster
   is strongly recommended. Unfortunately, installing deal.II with GPU support is non-trivial. Please see the
   [deal.II GPU wiki page](https://github.com/dealii/dealii/wiki/GPU-support-in-deal.II) for installation
@@ -77,7 +79,8 @@ We acknowledge support from the NVIDIA Academic Grant Program award "Sustainable
   <code>degree_p</code> in the code, which also changes the velocity degree
   which is set to <code>degree_p + 1</code>. This is also discussed in
   step-22, though that tutorial differs slightly in that a deformation tensor
-  is used in place of $\nabla \mathbf{u}$.
+  is used in place of $\nabla \mathbf{u}$. I was a bit puzzled about the purpose of this paragraph, because it is all already explained in step-22 and not directly related to the teaching points of this step. Step-31 and 32 also just refer to 22 when explaining their finite elements. I think the tutorial would be easier to read if you state that you generally follow the discretization of step-22, and then focus on what is different from 22 (i.e. everything related to matrix-free on GPUs).
+Oh, and if you want to keep this paragraph, because it is important to the change of this step, you would need to spell this out. In this case you also need to at mention what the LBB conditions are, for users who havent stumbled across them in the other steps.
 
   <h3>Linear system and preconditioning</h3>
 
@@ -91,7 +94,9 @@ We acknowledge support from the NVIDIA Academic Grant Program award "Sustainable
     \begin{pmatrix} f \\ 0 \end{pmatrix}.
   @f}
 
-  The eigenvalues of $M$ are not clustered favorably. Consequently, an iterative
+  The eigenvalues of $M$ are not clustered favorably.
+  Here it would be helpful to define what A, B, and B^T are. Also this statement comes a bit out of the blue, do we discuss the eigenvalues and preconditioner choices already in step-22 or step-31? Then maybe refer there for a discussion?
+  Consequently, an iterative
   solver would not converge in a reasonable number of iterations. To address this
   issue, we use a block triangular right preconditioner of the form
 
@@ -134,7 +139,9 @@ We acknowledge support from the NVIDIA Academic Grant Program award "Sustainable
 
   Of course, it is more computationally efficient to choose
   $\widetilde{A}^{-1}$ and $\widetilde{S}^{-1}$ to be rough
-  approximations of $A^{-1}$ and $(BA^{-1}B^T)^{-1}$. In
+  approximations of $A^{-1}$ and $(BA^{-1}B^T)^{-1}$.
+  This "of course" is not obvious to a tutorial reader. Maybe replace with something like: "Of course computing A^-1 and S^-1 exactly is only slightly cheaper than computing the inverse of the whole block system, and way too expensive to create a (good) preconditioner. Instead it is more computationally efficient to ...
+  In
   particular, we approximate $A$ with a single V-cycle application of a geometric multigrid (GMG)
   preconditioner and $S$ with the
   inverse pressure mass matrix $M_p$. This approximation of the Schur
@@ -144,7 +151,7 @@ We acknowledge support from the NVIDIA Academic Grant Program award "Sustainable
   orders of magnitude.
 
   Letting $y = Px$, we can use an iterative solver to find $y$
-  and deduce that $x = P^{-1}y$.
+  and deduce that $x = P^{-1}y$. I dont see where this fits into the rest of the tutoral, you dont use y or P above as far as I can see.
 
   For the actual preconditioner implementation, we require matrix-free
   operators for the Stokes system, the $A$ block, the Schur complement
@@ -223,3 +230,5 @@ We acknowledge support from the NVIDIA Academic Grant Program award "Sustainable
    @f}
 
   in three dimensions.
+
+  Since in the code you also have to specify the right-hand side, it would make sense to define it here as well, to have a full description of the problem in the text, including boundary conditions.

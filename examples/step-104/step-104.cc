@@ -75,6 +75,9 @@ namespace Step104
   // \sin^2(\pi x)\sin(2\pi y))
   // \\ p &= \cos(\pi x)\cos(\pi y)\cos(\pi z)
   // @f}
+
+  Either here or in the introduction: You state the solution, but not the right-hand side or boundary conditioner of the problem. You also dont state if this is a published benchmark, or if you created it for this tutorial program. Please add.
+
   //
   // The following classes define these in code.
   template <int dim, typename Number>
@@ -245,6 +248,13 @@ namespace Step104
   class VelocityOperatorQuad
   {
   public:
+    // Is it worth explaining DEAL_II_HOST_DEVICE in the comments? It is
+    // probably done in step-64, but it would be worth reiterating. Actually I
+    // just checked, it is mentioned, but not explained in 64. I wouldnt mind
+    // having a comment that explains it adds the appropriate compiler
+    // instructions to let the compiler for device code know this function needs
+    // to be compiled for device (in addition to the host? or just for the
+    // device?).
     DEAL_II_HOST_DEVICE void operator()(
       Portable::FEEvaluation<dim, fe_degree, fe_degree + 1, dim, Number>
                *fe_eval,
@@ -769,6 +779,8 @@ namespace Step104
   private:
     /**
      * References to the various operators this preconditioner works with.
+     Also explain why you keep the mutable tmp vector around (I suspect to avoid
+     allocating it repeatedly for each preconditioner application?)
      */
     mutable VectorType  tmp;
     const AInvOperator &A_inverse_operator;
@@ -801,10 +813,16 @@ namespace Step104
   BlockSchurPreconditioner<AInvOperator, SInvOperator, BTOperator, VectorType>::
     vmult(VectorType &dst, const VectorType &src) const
   {
-    if (tmp.size() == 0)
-      tmp.reinit(src);
+    /* Since you only reinitialize tmp the first time you get here,
+       it needs to be guaranteed that values in tmp are not reused before they
+         are overwritten.Is this guaranteed by the vmult in line 843 ?
+       Maybe mention it in a comment here or
+         before line 843. if (tmp.size() == 0) tmp.reinit(src);*/
 
     // First apply the Schur Complement inverse operator.
+    // Would it be easy to add in matrix-vector notation the operation that is
+    // performed in each of the three steps in this function? That would make it
+    // easier to follow for the reader.
     {
       S_inverse_operator.vmult(dst.block(1), src.block(1));
       dst.block(1) *= -1.0;
@@ -880,6 +898,18 @@ namespace Step104
     , pcout(std::cout, Utilities::MPI::this_mpi_process(MPI_COMM_WORLD) == 0)
   {}
 
+
+  // setup_dofs() would benefit from documentation that states how the function
+  // is different from similar functions in step-22 and step-64. In particular,
+  // is there another step that explains the the approach of having a vector of
+  // DoFHandlers and constraints to hand over to MatrixFree? Then reference that
+  // one.
+  // Also: Somewhere (not necessarily here) it should be discussed which vectors
+  // live on the device memory space, and which ones on the host, and where
+  // these vectors are filled and when and how they are transferred. At the
+  // moment it is unclear to the reader which part of the algorithm is actually
+  // happening on the GPU and which one is still being processed on the CPU
+  // (e.g. as far as I can tell the right-hand side below is formed on the CPU).
   template <int dim, int degree_p, typename Number>
   void StokesProblem<dim, degree_p, Number>::setup_dofs()
   {
@@ -989,13 +1019,28 @@ namespace Step104
                                                             max_level);
     MGLevelObject<LevelMatrixType>           mg_matrices(min_level, max_level);
 
+    // You mentioned this in the PR discussion, but it would be good to explain
+    // here as well what MGTwoLevelTransferCopyToHost implies. I suppose that
+    // the data needs to be copied to the host during GMG level transfer? What
+    // are the performance implications? Is this a temporary state that is
+    // intended to be optimized in the future? Are there fundamental problems
+    // with implementing this on a GPU? Will it be possible to just replace this
+    // class with another when GPU level transfer is implemented and leave the
+    // rest of the algorithm unchanged? This is part of my general comment that
+    // this step states that it solves Stokes on a GPU, but it does not explain
+    // much about how that specifically works (compared to a CPU matrix free
+    // code), or is internally implemented.
     MGLevelObject<MGTwoLevelTransferCopyToHost<dim, VectorType>> mg_transfers(
       min_level, max_level);
 
     std::vector<std::shared_ptr<Portable::MatrixFree<dim, Number>>>
       mf_data_levels;
 
-    // level operators
+    /* Is this what is meant                                      here ?
+       Actually I dont see where the operators specifically are prepared,
+       isnt this just creating the data                         structures ?*/
+    // Prepare the operators and data structures on all levels of the
+    // multigrid hierarchy
     for (unsigned int level = min_level; level <= max_level; ++level)
       {
         auto &dof_handler = mg_dof_handlers[level];
@@ -1085,6 +1130,9 @@ namespace Step104
     mg_smoother.initialize(mg_matrices, smoother_data);
 
     pcout << "GMG velocity block smoothers:" << std::endl;
+
+    // Add a comment why you estimate the eigenvalues. Is this just diagnostic
+    // output, or do you use it for tuning the Chebyshev parameters?
     for (unsigned int level = min_level; level <= max_level; ++level)
       {
         VectorType vec;
@@ -1151,6 +1199,7 @@ namespace Step104
 
     SPreconditionerType preconditioner_schur;
     {
+      // Add a comment how these preconditioner values were chosen
       typename SPreconditionerType::AdditionalData additional_data;
       additional_data.smoothing_range     = 15.;
       additional_data.degree              = 3;
@@ -1189,9 +1238,12 @@ namespace Step104
 
 
 
-  // The postprocess() function moves the solution to host memory
-  // and integrates the difference to the manufactured solution to
-  // compute errors.
+  // Here it is documented in which memory space we are working,
+  //   this is great.This is the information I was missing in the other
+  //   functions.
+  //  The postprocess() function moves the solution to host memory
+  //  and integrates the difference to the manufactured solution to
+  //  compute errors.
   template <int dim, int degree_p, typename Number>
   void StokesProblem<dim, degree_p, Number>::postprocess()
   {

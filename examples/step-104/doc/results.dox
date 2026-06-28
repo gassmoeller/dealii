@@ -2,7 +2,7 @@
 
 <h3>Validation</h3>
 
-When running the program on a single GPU (here an H100), we can produce the following
+When running the program on a single GPU (here an H100) , and computing the L2 error norms between the finite element solution and the analytical solution discussed above, we can produce the following
 table of results:
 
 | Refinement |       DoFs | Iterations |    Time (s) | Velocity Error | Pressure Error |
@@ -14,9 +14,10 @@ table of results:
 |          4 |  6,714,692 |         39 |     2.5e+01 |       1.2e-05  |       5.5e-05  |
 |          5 | 53,070,468 |         39 |     2.1e+02 |       1.5e-06  |       1.4e-05  |
 
-We see optimal convergence rates for L2 errors of velocity and pressure and
+We see optimal convergence rates for L2 errors of velocity and pressure Spell out the optimal convergence rate, what would we expect? If it is mentioned in other steps, you can just reference them. and
 decent linear scaling with problem size: A factor 8 in increase in unknowns leads to
-a factor of 8 in solve time.
+a factor of 8 in solve time. Maybe mention that solve time is only scaling linearly starting around refinement 3 (~800k Dofs). That is not really surprising, maybe this is just a given with larger overhead for the GPU, or there is still potential for optimization, but it should be mentioned for the reader.
+
 
 <h3>Performance Portability</h3>
 
@@ -59,10 +60,10 @@ also oversubscribe a GPU cluster by running more MPI ranks than GPUs on a
 system. This will result in more than one rank sharing a GPU, which will typically
 degrade performance due to scheduling overhead and workload imbalance.
 
-Note that the typical rule of using one MPI rank per physical CPU core is
-not applicable for a GPU enabled code. Part of the code that runs on the CPU
-(matrix-free setup, error estimation, etc.) can make use of multiple threads.
-This means you will need to allocate several threads per MPI rank if you are
+Note that because of this scheduling overhead the typical rule of using one MPI rank per physical CPU core is
+not applicable for a GPU enabled code. However, in order to still make use of additional CPU cores, parts of the algorithm that run on the CPU
+(e.g. matrix-free setup, error estimation, etc.) can make use of multiple threads.
+This means for optimal performance you will need to allocate several threads per MPI rank if you are
 running on a GPU cluster. For example, on the
 <a href="https://docs.rcd.clemson.edu/palmetto/">Clemson Palmetto Cluster</a> a
 job submission of
@@ -71,8 +72,7 @@ job submission of
 @endcode
 would allocate a node with 8 H100 GPUs, 8 MPI ranks, and 10 threads per rank.
 
-As an example, here is a table with solve times running one of these nodes
-with up to 8 H100 GPUs:
+As an example, here is the same performance table as above, with models using up to 8 H100 GPUs:
 
 | Refinement | DoFs        | 1 GPU (s) | 2 GPU (s) | 4 GPU (s) | 8 GPU (s) |
 |----------: |-----------: |---------: |---------: |---------: |---------: |
@@ -85,8 +85,8 @@ with up to 8 H100 GPUs:
 | 6          | 421,991,684 | -         | -         | 1500      | 970       |
 
 Notice that we can solve larger problems with 4 or more GPUs compared to a single GPU. On
-the one hand, we also have some reduction in time to solution, at least for the larger problem sizes.
-On the other hand, notice that time to solution does not scale linearly. This is likely
+the one hand, using more GPUs for a problem indeed reduces the time to solution, at least if the problem size is large enough.
+On the other hand, notice that time to solution does not scale linearly with the number of used GPUs and stagnates at model sizes below 200k DoFs per GPU. In addition, switching from one GPU to more than one incurs a performance penalty of 20-30%. Both of these effects are likely
 due to additional communication overhead and something we will investigate and improve
 in the future.
 
