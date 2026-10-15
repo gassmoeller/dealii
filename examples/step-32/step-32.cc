@@ -849,14 +849,28 @@ namespace Step32
     DoFHandler<dim>           temperature_dof_handler;
     AffineConstraints<double> temperature_constraints;
 
-    TrilinosWrappers::SparseMatrix temperature_mass_matrix;
-    TrilinosWrappers::SparseMatrix temperature_stiffness_matrix;
-    TrilinosWrappers::SparseMatrix temperature_matrix;
+    //     using matrix_type = TrilinosWrappers::SparseMatrix;
+    // using vector_type = TrilinosWrappers::MPI::Vector;
+    // using sparsity_pattern_type = ::dealii::LinearAlgebra::TpetraWrappers::SparsityPattern<
+    //  ::dealii::MemorySpace::Host>;
 
-    TrilinosWrappers::MPI::Vector temperature_solution;
-    TrilinosWrappers::MPI::Vector old_temperature_solution;
-    TrilinosWrappers::MPI::Vector old_old_temperature_solution;
-    TrilinosWrappers::MPI::Vector temperature_rhs;
+    using matrix_type = ::dealii::LinearAlgebra::TpetraWrappers::
+    SparseMatrix<double, ::dealii::MemorySpace::Default>;
+    using vector_type = ::dealii::LinearAlgebra::TpetraWrappers::
+      Vector<double, ::dealii::MemorySpace::Default>;
+    using preconditioner_type = ::dealii::LinearAlgebra::TpetraWrappers::
+    PreconditionJacobi<double, MemorySpace::Default>;
+    using sparsity_pattern_type = ::dealii::LinearAlgebra::TpetraWrappers::SparsityPattern<
+      ::dealii::MemorySpace::Default>;
+
+    matrix_type temperature_mass_matrix;
+    matrix_type temperature_stiffness_matrix;
+    matrix_type temperature_matrix;
+
+    vector_type temperature_solution;
+    vector_type old_temperature_solution;
+    vector_type old_old_temperature_solution;
+    vector_type temperature_rhs;
 
 
     double       time_step;
@@ -865,7 +879,7 @@ namespace Step32
 
     std::shared_ptr<TrilinosWrappers::PreconditionAMG>    Amg_preconditioner;
     std::shared_ptr<TrilinosWrappers::PreconditionJacobi> Mp_preconditioner;
-    std::shared_ptr<TrilinosWrappers::PreconditionJacobi> T_preconditioner;
+    std::shared_ptr<preconditioner_type> T_preconditioner;
 
     bool rebuild_stokes_matrix;
     bool rebuild_stokes_preconditioner;
@@ -976,8 +990,8 @@ namespace Step32
   BoussinesqFlowProblem<dim>::Parameters::Parameters(
     const std::string &parameter_filename)
     : end_time(1e8)
-    , initial_global_refinement(2)
-    , initial_adaptive_refinement(2)
+    , initial_global_refinement(1)
+    , initial_adaptive_refinement(0)
     , adaptive_refinement_interval(10)
     , stabilization_alpha(2)
     , stabilization_c_R(0.11)
@@ -1770,7 +1784,7 @@ namespace Step32
       MPI_COMM_WORLD,
       temperature_relevant_partitioner);
 
-    TrilinosWrappers::SparsityPattern sp;
+    sparsity_pattern_type sp;
     sp.reinit(temperature_partitioner,
               temperature_partitioner,
               dsp,
@@ -2673,7 +2687,7 @@ namespace Step32
     if (rebuild_temperature_preconditioner == true)
       {
         T_preconditioner =
-          std::make_shared<TrilinosWrappers::PreconditionJacobi>();
+          std::make_shared<preconditioner_type>();
         T_preconditioner->initialize(temperature_matrix);
         rebuild_temperature_preconditioner = false;
       }
@@ -2923,9 +2937,9 @@ namespace Step32
 
       SolverControl solver_control(temperature_matrix.m(),
                                    1e-12 * temperature_rhs.l2_norm());
-      SolverCG<TrilinosWrappers::MPI::Vector> cg(solver_control);
+      SolverCG<vector_type> cg(solver_control);
 
-      TrilinosWrappers::MPI::Vector distributed_temperature_solution(
+      vector_type distributed_temperature_solution(
         temperature_rhs);
       distributed_temperature_solution = old_temperature_solution;
 
@@ -3268,7 +3282,7 @@ namespace Step32
   void
   BoussinesqFlowProblem<dim>::refine_mesh(const unsigned int max_grid_level)
   {
-    SolutionTransfer<dim, TrilinosWrappers::MPI::Vector> temperature_trans(
+    SolutionTransfer<dim, vector_type> temperature_trans(
       temperature_dof_handler);
     SolutionTransfer<dim, TrilinosWrappers::MPI::BlockVector> stokes_trans(
       stokes_dof_handler);
@@ -3309,7 +3323,7 @@ namespace Step32
       // remainder of the function further down below is then concerned with
       // setting up the data structures again after mesh refinement and
       // restoring the solution vectors on the new mesh.
-      const std::vector<const TrilinosWrappers::MPI::Vector *> x_temperature = {
+      const std::vector<const vector_type *> x_temperature = {
         &temperature_solution, &old_temperature_solution};
       const std::vector<const TrilinosWrappers::MPI::BlockVector *> x_stokes = {
         &stokes_solution, &old_stokes_solution};
@@ -3329,10 +3343,10 @@ namespace Step32
                                        "Refine mesh structure, part 2");
 
       {
-        TrilinosWrappers::MPI::Vector distributed_temp1(temperature_rhs);
-        TrilinosWrappers::MPI::Vector distributed_temp2(temperature_rhs);
+        vector_type distributed_temp1(temperature_rhs);
+        vector_type distributed_temp2(temperature_rhs);
 
-        std::vector<TrilinosWrappers::MPI::Vector *> tmp = {&distributed_temp1,
+        std::vector<vector_type *> tmp = {&distributed_temp1,
                                                             &distributed_temp2};
         temperature_trans.interpolate(tmp);
 
@@ -3394,7 +3408,7 @@ namespace Step32
   start_time_iteration:
 
     {
-      TrilinosWrappers::MPI::Vector solution(
+      vector_type solution(
         temperature_dof_handler.locally_owned_dofs());
       // VectorTools::project supports parallel vector classes with most
       // standard finite elements via deal.II's own native MatrixFree framework:
@@ -3495,9 +3509,9 @@ namespace Step32
               stokes_solution = distr_solution;
             }
             {
-              TrilinosWrappers::MPI::Vector distr_solution(temperature_rhs);
+              vector_type distr_solution(temperature_rhs);
               distr_solution = temperature_solution;
-              TrilinosWrappers::MPI::Vector distr_old_solution(temperature_rhs);
+              vector_type distr_old_solution(temperature_rhs);
               distr_old_solution = old_old_temperature_solution;
               distr_solution.sadd(1. + time_step / old_time_step,
                                   -time_step / old_time_step,
@@ -3544,7 +3558,7 @@ int main(int argc, char *argv[])
       using namespace dealii;
 
       Utilities::MPI::MPI_InitFinalize mpi_initialization(
-        argc, argv, numbers::invalid_unsigned_int);
+        argc, argv, 1);
 
       std::string parameter_filename;
       if (argc >= 2)

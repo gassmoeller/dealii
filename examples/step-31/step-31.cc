@@ -1,17 +1,16 @@
-/* ------------------------------------------------------------------------
- *
- * SPDX-License-Identifier: LGPL-2.1-or-later
- * Copyright (C) 2007 - 2025 by the deal.II authors
- *
- * This file is part of the deal.II library.
- *
- * Part of the source code is dual licensed under Apache-2.0 WITH
- * LLVM-exception OR LGPL-2.1-or-later. Detailed license information
- * governing the source code and code contributions can be found in
- * LICENSE.md and CONTRIBUTING.md at the top level directory of deal.II.
- *
- * ------------------------------------------------------------------------
- *
+// -----------------------------------------------------------------------------
+//
+// SPDX-License-Identifier: LGPL-2.1-or-later
+// Copyright (C) 2007 - 2025 by the deal.II authors
+//
+// This file is part of the deal.II library.
+//
+// Detailed license information governing the source code and contributions
+// can be found in LICENSE.md and CONTRIBUTING.md at the top level directory.
+//
+// -----------------------------------------------------------------------------
+
+/*
  * Authors: Martin Kronbichler, Uppsala University,
  *          Wolfgang Bangerth, Texas A&M University 2007, 2008
  */
@@ -500,14 +499,21 @@ namespace Step31
     DoFHandler<dim>           temperature_dof_handler;
     AffineConstraints<double> temperature_constraints;
 
-    TrilinosWrappers::SparseMatrix temperature_mass_matrix;
-    TrilinosWrappers::SparseMatrix temperature_stiffness_matrix;
-    TrilinosWrappers::SparseMatrix temperature_matrix;
+    ::dealii::LinearAlgebra::TpetraWrappers::
+    SparseMatrix<double, ::dealii::MemorySpace::Default> temperature_mass_matrix;
+    ::dealii::LinearAlgebra::TpetraWrappers::
+    SparseMatrix<double, ::dealii::MemorySpace::Default> temperature_stiffness_matrix;
+    ::dealii::LinearAlgebra::TpetraWrappers::
+    SparseMatrix<double, ::dealii::MemorySpace::Default> temperature_matrix;
 
-    TrilinosWrappers::MPI::Vector temperature_solution;
-    TrilinosWrappers::MPI::Vector old_temperature_solution;
-    TrilinosWrappers::MPI::Vector old_old_temperature_solution;
-    TrilinosWrappers::MPI::Vector temperature_rhs;
+    ::dealii::LinearAlgebra::TpetraWrappers::
+      Vector<double, ::dealii::MemorySpace::Default> temperature_solution;
+    ::dealii::LinearAlgebra::TpetraWrappers::
+      Vector<double, ::dealii::MemorySpace::Default> old_temperature_solution;
+    ::dealii::LinearAlgebra::TpetraWrappers::
+      Vector<double, ::dealii::MemorySpace::Default> old_old_temperature_solution;
+    ::dealii::LinearAlgebra::TpetraWrappers::
+      Vector<double, ::dealii::MemorySpace::Default> temperature_rhs;
 
 
     double       time_step;
@@ -1802,9 +1808,14 @@ namespace Step31
     {
       SolverControl solver_control(temperature_matrix.m(),
                                    1e-8 * temperature_rhs.l2_norm());
-      SolverCG<TrilinosWrappers::MPI::Vector> cg(solver_control);
 
-      MpPreconditionType preconditioner;
+
+
+      SolverCG<::dealii::LinearAlgebra::TpetraWrappers::
+      Vector<double, ::dealii::MemorySpace::Default>> cg(solver_control);
+
+      ::dealii::LinearAlgebra::TpetraWrappers::
+    PreconditionJacobi<double, MemorySpace::Default> preconditioner;
       preconditioner.initialize(temperature_matrix);
 
       cg.solve(temperature_matrix,
@@ -1964,11 +1975,13 @@ namespace Step31
     // and temperature DoFHandler objects, by attaching them to the old dof
     // handlers. With this at place, we can prepare the triangulation and the
     // data vectors for refinement (in this order).
-    const std::vector<TrilinosWrappers::MPI::Vector> x_temperature = {
+    const std::vector<::dealii::LinearAlgebra::TpetraWrappers::
+      Vector<double, ::dealii::MemorySpace::Default>> x_temperature = {
       temperature_solution, old_temperature_solution};
     TrilinosWrappers::MPI::BlockVector x_stokes = stokes_solution;
 
-    SolutionTransfer<dim, TrilinosWrappers::MPI::Vector> temperature_trans(
+    SolutionTransfer<dim, ::dealii::LinearAlgebra::TpetraWrappers::
+      Vector<double, ::dealii::MemorySpace::Default>> temperature_trans(
       temperature_dof_handler);
     SolutionTransfer<dim, TrilinosWrappers::MPI::BlockVector> stokes_trans(
       stokes_dof_handler);
@@ -1991,9 +2004,12 @@ namespace Step31
     triangulation.execute_coarsening_and_refinement();
     setup_dofs();
 
-    std::vector<TrilinosWrappers::MPI::Vector> tmp = {
-      TrilinosWrappers::MPI::Vector(temperature_solution),
-      TrilinosWrappers::MPI::Vector(temperature_solution)};
+    std::vector<::dealii::LinearAlgebra::TpetraWrappers::
+      Vector<double, ::dealii::MemorySpace::Default>> tmp = {
+      ::dealii::LinearAlgebra::TpetraWrappers::
+      Vector<double, ::dealii::MemorySpace::Default>(temperature_solution),
+      ::dealii::LinearAlgebra::TpetraWrappers::
+      Vector<double, ::dealii::MemorySpace::Default>(temperature_solution)};
     temperature_trans.interpolate(tmp);
 
     temperature_solution     = tmp[0];
@@ -2040,8 +2056,8 @@ namespace Step31
   template <int dim>
   void BoussinesqFlowProblem<dim>::run()
   {
-    const unsigned int initial_refinement     = (dim == 2 ? 4 : 2);
-    const unsigned int n_pre_refinement_steps = (dim == 2 ? 4 : 3);
+    const unsigned int initial_refinement     = (dim == 2 ? 4 : 3);
+    const unsigned int n_pre_refinement_steps = (dim == 2 ? 0 : 0);
 
 
     GridGenerator::hyper_cube(triangulation);
@@ -2109,7 +2125,7 @@ namespace Step31
         old_temperature_solution     = temperature_solution;
       }
     // Do all the above until we arrive at time 100.
-    while (time <= 100);
+    while (time <= 4);
   }
 } // namespace Step31
 
@@ -2137,7 +2153,7 @@ int main(int argc, char *argv[])
       using namespace Step31;
 
       Utilities::MPI::MPI_InitFinalize mpi_initialization(
-        argc, argv, numbers::invalid_unsigned_int);
+        argc, argv, 1);
 
       // This program can only be run in serial. Otherwise, throw an exception.
       AssertThrow(Utilities::MPI::n_mpi_processes(MPI_COMM_WORLD) == 1,

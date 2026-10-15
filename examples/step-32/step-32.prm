@@ -2,7 +2,7 @@
 # ---------------------
 # The end time of the simulation in years.
 
-set End time = 1e8
+set End time = 5e4
 
 # Whether graphical output is to be generated or not. You may not want to get
 # graphical output if the number of processors is large.
@@ -12,12 +12,12 @@ set Generate graphical output = true
 # The number of adaptive refinement steps performed after initial global
 # refinement.
 
-set Initial adaptive refinement = 2
+set Initial adaptive refinement = 0
 
 # The number of global refinement steps performed on the initial coarse mesh,
 # before the problem is first solved there.
 
-set Initial global refinement = 5
+set Initial global refinement = 3
 
 # The number of time steps between each generation of graphical output files.
 
