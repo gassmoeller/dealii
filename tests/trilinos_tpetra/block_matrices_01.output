@@ -1,4 +1,20 @@
 
-DEAL::nonzeros BlockSparsityPattern: 9
-DEAL::nonzeros BlockSparseMatrix: 9
-DEAL::nonzeros BlockSparseMatrix: 9
+DEAL::BlockSparseMatrix<double, MemorySpace::Host>
+DEAL::Nonzeros in BlockSparsityPattern: 9
+DEAL::Nonzeros in BlockSparseMatrix: 9
+DEAL::Nonzeros in BlockSparseMatrix: 9
+DEAL::
+DEAL::BlockSparseMatrix<double, MemorySpace::Default>
+DEAL::Nonzeros in BlockSparsityPattern: 9
+DEAL::Nonzeros in BlockSparseMatrix: 9
+DEAL::Nonzeros in BlockSparseMatrix: 9
+DEAL::
+DEAL::BlockSparseMatrix<float, MemorySpace::Host>
+DEAL::Nonzeros in BlockSparsityPattern: 9
+DEAL::Nonzeros in BlockSparseMatrix: 9
+DEAL::Nonzeros in BlockSparseMatrix: 9
+DEAL::
+DEAL::BlockSparseMatrix<float, MemorySpace::Default>
+DEAL::Nonzeros in BlockSparsityPattern: 9
+DEAL::Nonzeros in BlockSparseMatrix: 9
+DEAL::Nonzeros in BlockSparseMatrix: 9

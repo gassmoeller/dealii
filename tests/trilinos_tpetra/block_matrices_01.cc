@@ -22,6 +22,7 @@
 
 
 
+template <typename Number, typename MemorySpace>
 void
 test()
 {
@@ -44,14 +45,13 @@ test()
       bdsp.add(row, col);
 
   bdsp.compress();
-  deallog << "nonzeros BlockSparsityPattern: " << bdsp.n_nonzero_elements()
+  deallog << "Nonzeros in BlockSparsityPattern: " << bdsp.n_nonzero_elements()
           << std::endl;
 
   // create block sparse matrix
-  LinearAlgebra::TpetraWrappers::BlockSparseMatrix<double, MemorySpace::Host>
-    tbsm;
+  LinearAlgebra::TpetraWrappers::BlockSparseMatrix<Number, MemorySpace> tbsm;
   tbsm.reinit(bdsp);
-  deallog << "nonzeros BlockSparseMatrix: " << tbsm.n_nonzero_elements()
+  deallog << "Nonzeros in BlockSparseMatrix: " << tbsm.n_nonzero_elements()
           << std::endl;
 
 
@@ -68,11 +68,10 @@ test()
     set.compress();
 
   // create block sparse matrix using another reinit() function
-  LinearAlgebra::TpetraWrappers::BlockSparseMatrix<double, MemorySpace::Host>
-    tbsm2;
+  LinearAlgebra::TpetraWrappers::BlockSparseMatrix<Number, MemorySpace> tbsm2;
   tbsm2.reinit(partitioning, bdsp, MPI_COMM_SELF, false);
 
-  deallog << "nonzeros BlockSparseMatrix: " << tbsm.n_nonzero_elements()
+  deallog << "Nonzeros in BlockSparseMatrix: " << tbsm.n_nonzero_elements()
           << std::endl;
 }
 
@@ -85,7 +84,24 @@ main(int argc, char *argv[])
 
   initlog();
 
-  test();
+#ifdef DEAL_II_TRILINOS_WITH_TPETRA_INST_DOUBLE
+  deallog << "BlockSparseMatrix<double, MemorySpace::Host>" << std::endl;
+  test<double, MemorySpace::Host>();
+
+  deallog << std::endl
+          << "BlockSparseMatrix<double, MemorySpace::Default>" << std::endl;
+  test<double, MemorySpace::Default>();
+#endif
+
+#ifdef DEAL_II_TRILINOS_WITH_TPETRA_INST_FLOAT
+  deallog << std::endl
+          << "BlockSparseMatrix<float, MemorySpace::Host>" << std::endl;
+  test<float, MemorySpace::Host>();
+
+  deallog << std::endl
+          << "BlockSparseMatrix<float, MemorySpace::Default>" << std::endl;
+  test<float, MemorySpace::Default>();
+#endif
 
   return 0;
 }
