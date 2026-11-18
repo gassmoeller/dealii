@@ -1391,7 +1391,8 @@ namespace LinearAlgebra
                        const int          smoother_overlap = 0,
                        const bool         output_details   = false,
                        const std::string &smoother_type    = "Chebyshev",
-                       const std::string &coarse_type      = "KLU2");
+                       const std::string &coarse_type      = "KLU2",
+                       const Teuchos::ParameterList &additional_parameters = Teuchos::ParameterList());
 
         /**
          * @brief Optimize for elliptic problems.
@@ -1485,6 +1486,11 @@ namespace LinearAlgebra
          * addition of "KLU2" from Amesos2.
          */
         std::string coarse_type;
+
+        /**
+         * Additional parameters the user may want to set.
+         */
+         Teuchos::ParameterList additional_parameters;
       };
 
       PreconditionAMGMueLu() = default;

@@ -56,7 +56,8 @@ namespace LinearAlgebra
       const int                             smoother_overlap,
       const bool                            output_details,
       const std::string                    &smoother_type,
-      const std::string                    &coarse_type)
+      const std::string                    &coarse_type,
+      const Teuchos::ParameterList         &additional_parameters)
       : elliptic(elliptic)
       , symmetric(symmetric)
       , w_cycle(w_cycle)
@@ -67,6 +68,7 @@ namespace LinearAlgebra
       , output_details(output_details)
       , smoother_type(smoother_type)
       , coarse_type(coarse_type)
+      , additional_parameters(additional_parameters)
     {}
 
 
@@ -296,6 +298,10 @@ namespace LinearAlgebra
         parameter_list.set("verbosity", "high");
       else
         parameter_list.set("verbosity", "none");
+
+      // Set any other parameters the user provided, possibly
+      // overwriting the parameters set above
+      parameter_list.setParameters(ad.additional_parameters);
 
       initialize(A, parameter_list);
     }
