@@ -206,6 +206,25 @@ namespace LinearAlgebra
       reinit(const size_type num_blocks);
 
       /**
+       * Import the other overloads of extract_subvector_to() from the base
+       * class.
+       */
+      using BaseClass::extract_subvector_to;
+
+      /**
+       * Extract a set of elements, batching the read access to each block.
+       * The indices may be in any order and may contain duplicates. The
+       * entries are returned in the same order as the indices.
+       *
+       * @pre The sizes of @p indices and @p entries must be identical.
+       * @pre All requested elements must be locally owned or ghost elements.
+       */
+      void
+      extract_subvector_to(
+        const ArrayView<const types::global_dof_index> &indices,
+        const ArrayView<value_type>                    &entries) const override;
+
+      /**
        * Return if this Vector contains ghost elements.
        *
        * @see

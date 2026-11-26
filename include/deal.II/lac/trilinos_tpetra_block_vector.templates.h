@@ -24,6 +24,8 @@
 
 #endif // DEAL_II_TRILINOS_WITH_TPETRA
 
+#include <boost/container/small_vector.hpp>
+
 DEAL_II_NAMESPACE_OPEN
 
 #ifdef DEAL_II_TRILINOS_WITH_TPETRA
@@ -191,6 +193,46 @@ namespace LinearAlgebra
       this->components.resize(this->n_blocks());
       for (auto &c : this->components)
         c.clear();
+    }
+
+
+
+    template <typename Number, typename MemorySpace>
+    void
+    BlockVector<Number, MemorySpace>::extract_subvector_to(
+      const ArrayView<const types::global_dof_index> &indices,
+      const ArrayView<value_type>                    &entries) const
+    {
+      AssertDimension(indices.size(), entries.size());
+
+      if (indices.empty())
+        return;
+
+      // Group block-local indices together and remember their positions in
+      // the output, since the requested indices need not be sorted by block.
+      boost::container::small_vector<boost::container::small_vector<size_type, 200>, 10> block_local_indices(this->n_blocks());
+      boost::container::small_vector<boost::container::small_vector<std::size_t, 200>, 10> entry_positions(this->n_blocks());
+      for (std::size_t i = 0; i < indices.size(); ++i)
+        {
+          AssertIndexRange(indices[i], this->size());
+          const auto [block, index] =
+            this->block_indices.global_to_local(indices[i]);
+          block_local_indices[block].push_back(index);
+          entry_positions[block].push_back(i);
+        }
+
+      boost::container::small_vector<value_type, 200> block_entries;
+      for (unsigned int block = 0; block < this->n_blocks(); ++block)
+        if (!block_local_indices[block].empty())
+          {
+            block_entries.resize(block_local_indices[block].size());
+            this->block(block).extract_subvector_to(
+              make_array_view(block_local_indices[block].begin(), block_local_indices[block].end()),
+              make_array_view(block_entries.begin(), block_entries.end()));
+
+            for (std::size_t i = 0; i < block_entries.size(); ++i)
+              entries[entry_positions[block][i]] = block_entries[i];
+          }
     }
 
 

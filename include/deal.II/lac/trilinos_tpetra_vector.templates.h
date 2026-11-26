@@ -440,7 +440,7 @@ namespace LinearAlgebra
         {
           AssertIndexRange(indices[i], vector_map->getGlobalNumElements());
           const size_type                   row = indices[i];
-          TrilinosWrappers::types::int_type local_row =
+          const TrilinosWrappers::types::int_type local_row =
             vector_map->getLocalElement(row);
 
 
@@ -459,8 +459,7 @@ namespace LinearAlgebra
 
 #  endif
 
-          if (local_row != Teuchos::OrdinalTraits<int>::invalid())
-            elements[i] = (*vector_1d_view)(local_row);
+          elements[i] = (*vector_1d_view)(local_row);
         }
     }
 
